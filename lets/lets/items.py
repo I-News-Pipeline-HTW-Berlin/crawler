@@ -22,3 +22,25 @@ class LetsItem(scrapy.Item):
     published = scrapy.Field()
 
 
+class LinkItems(scrapy.Item):
+    url = scrapy.Field()
+
+
+class ArticleItems(scrapy.Item):
+    crawl_time = scrapy.Field()
+    long_url = scrapy.Field()
+    short_url = scrapy.Field()
+
+    news_site = scrapy.Field()
+    title = scrapy.Field()
+    author = scrapy.Field()
+    description = scrapy.Field()
+    text = scrapy.Field()
+
+    keywords = scrapy.Field()
+    published_time = scrapy.Field()
+    image_links = scrapy.Field()
+    links = scrapy.Field()
+
+
+
