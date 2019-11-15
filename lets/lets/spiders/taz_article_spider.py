@@ -1,5 +1,4 @@
 import scrapy
-from scrapy.loader import ItemLoader
 from scrapy import Selector
 from ..items import ArticleItems
 import json
@@ -21,7 +20,7 @@ class TazSpider(scrapy.Spider):
             if(page):
                 for url in page["url"]:
                     if url[0] == '/':
-                        url = root + url        # for relational paths its necessary to add scheme and host
+                        url = root + url        # for relative paths its necessary to add scheme and host
                     linkset.add(url)
         return list(linkset)
 
@@ -53,21 +52,25 @@ class TazSpider(scrapy.Spider):
 
 
         # Preparing for Output -> see items.py
-        l = ItemLoader(item=ArticleItems(), response=response)
+        item = ArticleItems()
 
-        l.add_value('crawl_time',datetime.now())
-        l.add_xpath('long_url', '//link[@rel=\"canonical\"]/@href')
-        l.add_xpath('short_url', '//meta[@property="og:url"]/@content')
+        item['crawl_time'] = datetime.now()
+        item['long_url'] = response.xpath('//link[@rel=\"canonical\"]/@href').get()
+        item['short_url'] = response.xpath('//meta[@property="og:url"]/@content').get()
 
-        l.add_value('news_site',"taz.de")
-        l.add_xpath('title', '//meta[@property="og:title"]/@content')
-        l.add_xpath('author', '//meta[@name="author"]/@content')
-        l.add_xpath('description', '//meta[@name="description"]/@content')
-        l.add_value('text', get_article_text())
+        item['news_site'] = "taz.de"
 
-        l.add_xpath('keywords', '//meta[@name="keywords"]/@content')
-        l.add_xpath('published_time', '//meta[@property="article:published_time"]/@content')
-        l.add_xpath('image_links', '//meta[@property="og:image"]/@content')
-        l.add_xpath('links', '//article /p[@xmlns=""]/a/@href')
+        item['title'] = response.xpath('//meta[@property="og:title"]/@content').get()
+        item['author'] = response.xpath('//meta[@name="author"]/@content').get()
+        item['description'] = response.xpath('//meta[@name="description"]/@content').get()
+        item['text'] = get_article_text()
 
-        return l.load_item()
+        item['keywords'] = response.xpath('//meta[@name="keywords"]/@content').extract()
+        published_time_string = response.xpath('//meta[@property="article:published_time"]/@content').get()
+        pub_time = datetime.strptime(published_time_string,'%Y-%m-%dT%H:%M:%S%z')       # "2019-11-14T10:50:00+01:00"
+        item['published_time'] = pub_time
+        item['image_links'] = response.xpath('//meta[@property="og:image"]/@content').extract()
+        item['links'] = response.xpath('//article /p[@xmlns=""]/a/@href').extract()
+        item['_id'] = response.xpath('//link[@rel=\"canonical\"]/@href').get()
+
+        yield item

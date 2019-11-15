@@ -20,25 +20,33 @@ class Taz_Links_Spider(scrapy.Spider):
             categories = categories[:testrun]
         for cat in categories:
             if cat[0]=='/':
-                cat = root + cat        # for relational paths it is necessary to add scheme and host
+                cat = root + cat        # for relative paths it is necessary to add scheme and host
             yield scrapy.Request(url=cat, callback=self.parse_categories)
 
 
     def parse_categories(self, response):
         l = ItemLoader(item=LinkItems(), response=response)
+        item=LinkItems()
 
-        # taz.de has different classes of links which direct to an article
-        linkclasses = [
-            "objlink report article",
-            "objlink report article leaded pictured",
-            "objlink brief report article leaded",
-            "objlink brief report article pictured",
-            "objlink subjective commentary article",
-            "objlink brief subjective column article leaded"]
+        def getLinkselector():
+            # taz.de has different classes of links which direct to an article
+            linkclasses = [
+                "objlink report article",
+                "objlink report article leaded pictured",
+                "objlink brief report article leaded",
+                "objlink brief report article pictured",
+                "objlink subjective commentary article",
+                "objlink brief subjective column article leaded"]
 
-        linkselector_start = '//a[@class=\"'
-        linkselector_end = '\"]/@href'
-        for linkclass in linkclasses:
-            linkselector = linkselector_start + linkclass + linkselector_end
-            l.add_xpath('url',linkselector)
-        return l.load_item()
+            linkselector = '//a[(@class=\"'
+            linkselector_middle = '\") or (@class=\"'
+            linkselector_end = '\")]/@href'
+            for linkclass in linkclasses:
+                linkselector+=linkclass + linkselector_middle
+            linkselector = linkselector[:-len(linkselector_middle)] + linkselector_end
+            return linkselector
+
+        linklist = response.xpath(getLinkselector)
+        # DB-Query for Duplicates?
+        item['url'] = linklist
+        yield item

@@ -27,20 +27,22 @@ class LinkItems(scrapy.Item):
 
 
 class ArticleItems(scrapy.Item):
-    crawl_time = scrapy.Field()
-    long_url = scrapy.Field()
-    short_url = scrapy.Field()
+    crawl_time = scrapy.Field()     # datetime.now()
+    long_url = scrapy.Field()       # String
+    short_url = scrapy.Field()      # String
 
-    news_site = scrapy.Field()
-    title = scrapy.Field()
-    author = scrapy.Field()
-    description = scrapy.Field()
-    text = scrapy.Field()
+    news_site = scrapy.Field()      # String: taz.de, sueddeutsche.de
+    title = scrapy.Field()          # String
+    author = scrapy.Field()         # String
+    description = scrapy.Field()    # String
+    text = scrapy.Field()           # String
 
-    keywords = scrapy.Field()
-    published_time = scrapy.Field()
-    image_links = scrapy.Field()
-    links = scrapy.Field()
+    keywords = scrapy.Field()       # List(String)
+    published_time = scrapy.Field() # datetime
+    image_links = scrapy.Field()    # List(String)
+    links = scrapy.Field()          # List(String)
+    _id = scrapy.Field()            # String
+
 
 
 
