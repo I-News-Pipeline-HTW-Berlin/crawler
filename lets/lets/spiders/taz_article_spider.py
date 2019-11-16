@@ -10,24 +10,22 @@ testrun = 10                     # limits the links to crawl to this number. if 
 class TazSpider(scrapy.Spider):
     name = "taz_articles"
     start_url = root
+    INSERT_DB = True
 
     # opens crawled json with article links, removes duplicates and converts to list
     def prepare_links(self):
         linkset = set()
         with open("taz_links.json", encoding='utf-8', errors='ignore') as json_data:
             links = json.load(json_data, strict=False)
-        for page in links:
-            if(page):
-                for url in page["url"]:
-                    if url[0] == '/':
-                        url = root + url        # for relative paths its necessary to add scheme and host
+        for category in links:
+            if(category):
+                for url in category["url"]:
                     linkset.add(url)
         return list(linkset)
 
     def start_requests(self):
         start_urls = self.prepare_links()
-        if testrun>0 and testrun<len(start_urls):
-            start_urls = start_urls[:testrun]
+        start_urls = self.limit_crawl(start_urls,testrun)
         for url in start_urls:
             yield scrapy.Request(url, callback=self.parse)
 
@@ -50,7 +48,6 @@ class TazSpider(scrapy.Spider):
                     article_text += paragraph + "\n\n"
             return article_text.strip()
 
-
         # Preparing for Output -> see items.py
         item = ArticleItems()
 
@@ -69,8 +66,26 @@ class TazSpider(scrapy.Spider):
         published_time_string = response.xpath('//meta[@property="article:published_time"]/@content').get()
         pub_time = datetime.strptime(published_time_string,'%Y-%m-%dT%H:%M:%S%z')       # "2019-11-14T10:50:00+01:00"
         item['published_time'] = pub_time
-        item['image_links'] = response.xpath('//meta[@property="og:image"]/@content').extract()
-        item['links'] = response.xpath('//article /p[@xmlns=""]/a/@href').extract()
+        image_links = response.xpath('//meta[@property="og:image"]/@content').extract()
+        item['image_links'] = self.add_host_to_url_list(image_links)
+        links = response.xpath('//article /p[@xmlns=""]/a/@href').extract()
+        item['links'] = self.add_host_to_url_list(links)
         item['_id'] = response.xpath('//link[@rel=\"canonical\"]/@href').get()
 
         yield item
+
+    def limit_crawl(self, list, number):
+        if number > 0 and number < len(list):
+            return list[:number]
+
+    def add_host_to_url(self,url):
+        if url[0] == '/':
+            url = root + url  # for relative paths it is necessary to add scheme and host
+        return url
+
+    def add_host_to_url_list(self, url_list):
+        complete_urls = []
+        if url_list:
+            for url in url_list:
+                complete_urls.append(self.add_host_to_url(url))
+        return complete_urls
