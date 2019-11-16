@@ -14,6 +14,22 @@ BOT_NAME = 'lets'
 SPIDER_MODULES = ['lets.spiders']
 NEWSPIDER_MODULE = 'lets.spiders'
 
+#############################################################################################################
+# Scrapy settings for MongoDatabase
+#
+# WARNING: This is only a template - don't commit any changes before you take out your database password !!!
+# https://api.mongodb.com/python/current/examples/authentication.html
+
+MONGO_USER = 's0...'
+MONGO_HOST = 'hadoop05.f4.htw-berlin.de:27020'
+MONGO_DATABASE = 's0...'
+MONGO_PWD = 'password'
+AUTH_MECHANISM = 'SCRAM-SHA-1'
+
+MONGO_URI = 'mongodb://' + MONGO_USER + ':' + MONGO_PWD + '@' + MONGO_HOST \
+            + '/?authSource=' + MONGO_DATABASE + '&authMechanism=' + AUTH_MECHANISM
+
+#############################################################################################################
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'lets (+http://www.yourdomain.com)'
@@ -64,9 +80,10 @@ ROBOTSTXT_OBEY = True
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
+ITEM_PIPELINES = {
 #    'lets.pipelines.LetsPipeline': 300,
-#}
+    'lets.pipelines.MongoPipeline': 300,
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html

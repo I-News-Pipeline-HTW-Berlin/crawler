@@ -2,6 +2,8 @@
 to crawl news websites
 
 
+**Warning: Don't commit changes in settings.py without removing your password!**
+
 ----------------------------------------------------------
 ## 1) sueddeutsche.de
 
@@ -28,10 +30,12 @@ Execute in terminal (in folder crawler/lets):
 **b) taz_article_spider**
 - removes duplicates in imported taz_links.json
 - crawls article links for article and meta data (see items.py)
-- saves data in database (TODO)
+- saves data in database in collection 'scraped_articles'
 
-Execute in terminal (in folder crawler/lets):
+For execution you need to fill in the database authentification data in settings.py. 
+Warning: Don't commit changes in settings.py without removing your password!
+ 
+If you have access to the database (directly or via VPN), 
+execute in terminal (in folder crawler/lets):
 
-`rm taz_articles.json`
-
-`scrapy crawl taz_articles -o taz_articles.json`
+`scrapy crawl taz_articles`
