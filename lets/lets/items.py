@@ -22,11 +22,7 @@ class LetsItem(scrapy.Item):
     published = scrapy.Field()
 
 
-class LinkItems(scrapy.Item):
-    url = scrapy.Field()            # List(String with complete URL - 'https://taz.de/Machtkampf-in-Bolivien/!5642421/')
-
-
-class ArticleItems(scrapy.Item):
+class ArticleItem(scrapy.Item):
     crawl_time = scrapy.Field()     # datetime.now()
     long_url = scrapy.Field()       # String 'https://taz.de/Machtkampf-in-Bolivien/!5642421/'
     short_url = scrapy.Field()      # String 'https://taz.de/!5642421/'
