@@ -6,11 +6,6 @@
 # See: https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 
 
-class LetsPipeline(object):
-    def process_item(self, item, spider):
-        return item
-
-
 import logging
 import pymongo
 
@@ -42,15 +37,6 @@ class MongoPipeline(object):
 
     def process_item(self, item, spider):
         ## how to handle each post
-        if spider.INSERT_DB:                # 2. Spider: Crawl articles from JSON with links => Insert into DB
-            self.db[self.collection_name].insert(dict(item))
-            logging.debug("Post added to MongoDB")
-        elif item['url']:                   # 1. Spider: Crawl categories for Links => Drop already crawled Links
-            no_db_duplicates = []
-            for url in item['url']:         # expects list of URL-Strings
-                if self.db[self.collection_name].find_one({"_id": url}, {"_id": 1}) is None:
-                    no_db_duplicates.append(url)
-                else:
-                    logging.debug("Already crawled: "+url)
-            item ['url']= no_db_duplicates
+        self.db[self.collection_name].insert(dict(item))
+        logging.debug("Post added to MongoDB")
         return item
