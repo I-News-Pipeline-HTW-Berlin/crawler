@@ -2,7 +2,7 @@ import scrapy
 from pymongo import MongoClient
 from scrapy import Selector
 from datetime import datetime
-from ..items import ArticleItems
+from ..items import ArticleItem
 from ..settings import MONGO_URI,MONGO_DATABASE
 
 root = 'https://taz.de'
@@ -86,7 +86,7 @@ class TazSpider(scrapy.Spider):
             return pub_time
 
         # Preparing for Output -> see items.py
-        item = ArticleItems()
+        item = ArticleItem()
 
         item['crawl_time'] = datetime.now()
         item['long_url'] = response.xpath('//link[@rel=\"canonical\"]/@href').get()
