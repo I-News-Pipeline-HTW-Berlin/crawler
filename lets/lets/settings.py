@@ -1,13 +1,4 @@
-# -*- coding: utf-8 -*-
-
-# Scrapy settings for lets project
-#
-# For simplicity, this file contains only settings considered important or
-# commonly used. You can find more settings consulting the documentation:
-#
-#     https://docs.scrapy.org/en/latest/topics/settings.html
-#     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+import os
 
 BOT_NAME = 'lets'
 
@@ -20,10 +11,10 @@ NEWSPIDER_MODULE = 'lets.spiders'
 # WARNING: This is only a template - don't commit any changes before you take out your database password !!!
 # https://api.mongodb.com/python/current/examples/authentication.html
 
-MONGO_USER = 's0...'
-MONGO_HOST = 'hadoop05.f4.htw-berlin.de:27020'
-MONGO_DATABASE = 's0...'
-MONGO_PWD = 'password'
+MONGO_USER = os.environ.get("MONGO_USER")
+MONGO_HOST = os.environ.get("MONGO_HOST")
+MONGO_DATABASE = os.environ.get("MONGO_DATABASE")
+MONGO_PWD = os.environ.get("MONGO_PWD")
 AUTH_MECHANISM = 'SCRAM-SHA-1'
 
 MONGO_URI = 'mongodb://' + MONGO_USER + ':' + MONGO_PWD + '@' + MONGO_HOST \
