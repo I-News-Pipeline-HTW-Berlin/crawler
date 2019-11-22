@@ -1,9 +1,20 @@
+# -*- coding: utf-8 -*-
+
+# Scrapy settings for inews_crawler project
+#
+# For simplicity, this file contains only settings considered important or
+# commonly used. You can find more settings consulting the documentation:
+#
+#     https://docs.scrapy.org/en/latest/topics/settings.html
+#     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
+#     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+
 import os
 
-BOT_NAME = 'lets'
+BOT_NAME = 'inews_crawler'
 
-SPIDER_MODULES = ['lets.spiders']
-NEWSPIDER_MODULE = 'lets.spiders'
+SPIDER_MODULES = ['inews_crawler.spiders']
+NEWSPIDER_MODULE = 'inews_crawler.spiders'
 
 #############################################################################################################
 # Scrapy settings for MongoDatabase
@@ -20,10 +31,11 @@ AUTH_MECHANISM = 'SCRAM-SHA-1'
 MONGO_URI = 'mongodb://' + MONGO_USER + ':' + MONGO_PWD + '@' + MONGO_HOST \
             + '/?authSource=' + MONGO_DATABASE + '&authMechanism=' + AUTH_MECHANISM
 
+COLLECTION_NAME = 'scraped_articles'
 #############################################################################################################
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
-#USER_AGENT = 'lets (+http://www.yourdomain.com)'
+#USER_AGENT = 'inews_crawler (+http://www.yourdomain.com)'
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
@@ -54,13 +66,13 @@ ROBOTSTXT_OBEY = True
 # Enable or disable spider middlewares
 # See https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 #SPIDER_MIDDLEWARES = {
-#    'lets.middlewares.LetsSpiderMiddleware': 543,
+#    'inews_crawler.middlewares.LetsSpiderMiddleware': 543,
 #}
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #DOWNLOADER_MIDDLEWARES = {
-#    'lets.middlewares.LetsDownloaderMiddleware': 543,
+#    'inews_crawler.middlewares.LetsDownloaderMiddleware': 543,
 #}
 
 # Enable or disable extensions
@@ -72,8 +84,7 @@ ROBOTSTXT_OBEY = True
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-#    'lets.pipelines.LetsPipeline': 300,
-    'lets.pipelines.MongoPipeline': 300,
+    'inews_crawler.pipelines.MongoPipeline': 300,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
