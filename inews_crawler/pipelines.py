@@ -8,10 +8,11 @@
 
 import logging
 import pymongo
+from .settings import COLLECTION_NAME
 
 class MongoPipeline(object):
 
-    collection_name = 'scraped_articles'
+    collection_name = COLLECTION_NAME
 
     def __init__(self, mongo_uri, mongo_db):
         self.mongo_uri = mongo_uri
