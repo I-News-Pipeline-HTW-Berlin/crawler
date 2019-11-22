@@ -7,11 +7,12 @@ collection_name = COLLECTION_NAME
 # db
 
 def db_connect(self):
-    self.client = MongoClient(MONGO_URI)
-    self.db = self.client[MONGO_DATABASE]
+    client = MongoClient(MONGO_URI)
+    db = client[MONGO_DATABASE]
+    return db
 
-def is_url_in_db(self, url):
-    url_db = self.db[collection_name].find_one({"_id": url}, {"_id": 1})
+def is_url_in_db(url, db):
+    url_db = db[collection_name].find_one({"_id": url}, {"_id": 1})
     return url_db is not None
 
 

@@ -25,6 +25,8 @@ export MONGO_PWD="password"
 
 You also need access to the database (directly or via VPN)
 
+More settings are available in `settings.py`, for example setting the collection.
+
 ### Test run
 
 For a test run, you can limit each spider separately:

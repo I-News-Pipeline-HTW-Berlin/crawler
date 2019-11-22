@@ -1,5 +1,6 @@
 import scrapy
 from scrapy import Selector
+import logging
 from datetime import datetime
 from ..items import ArticleItem
 from ..utils import db_connect, is_url_in_db, limit_crawl, get_short_url, add_host_to_url, add_host_to_url_list
@@ -8,7 +9,7 @@ root = 'https://taz.de'
 short_url_length = 9                # https://taz.de/!2345678/
 
 testrun_cats = 3                    # limits the categories to crawl to this number. if zero, no limit.
-testrun_arts = 2                    # limits the article links to crawl to this number. if zero, no limit.
+testrun_arts = 5                    # limits the article links to crawl to this number. if zero, no limit.
                                     # For deployment: don't forget to set the testrun variables to zero
 
 class TazSpider(scrapy.Spider):
@@ -16,17 +17,17 @@ class TazSpider(scrapy.Spider):
     start_url = root
 
     def start_requests(self):
-        db_connect(self)
         yield scrapy.Request(self.start_url, callback=self.parse)
 
     def parse(self, response):
+        db = db_connect(self)
         categories = response.xpath('//ul[@class="news navbar newsnavigation"]/li/a/@href').extract()
         categories = limit_crawl(categories,testrun_cats)
         for cat in categories:
             cat = add_host_to_url(cat,root)
-            yield scrapy.Request(url=cat, callback=self.parse_category)
+            yield scrapy.Request(url=cat, callback=self.parse_category, cb_kwargs=dict(db=db))
 
-    def parse_category(self, response):
+    def parse_category(self, response, db):
         def getLinkselector():
             # taz.de has different classes of links which direct to an article
             linkclasses = [
@@ -50,8 +51,10 @@ class TazSpider(scrapy.Spider):
         if linklist:
             for url in linklist:
                 url = get_short_url(url, root, short_url_length)
-                if not is_url_in_db(self, url):      # db-query
+                if not is_url_in_db(url, db):      # db-query
                     yield scrapy.Request(url, callback=self.parse_article)
+                else:
+                    logging.debug("%s already in db", url)
 
 
     def parse_article(self, response):

@@ -9,8 +9,8 @@ from ..utils import db_connect,is_url_in_db, limit_crawl,get_short_url,add_host_
 root = 'https://sueddeutsche.de'
 short_url_length = 9            # https://sueddeutsche.de/1.3456789
 
-testrun_cats = 2                # limits the categories to crawl to this number. if zero, no limit.
-testrun_arts = 1                # limits the article links to crawl per category page to this number. if zero, no limit.
+testrun_cats = 3                # limits the categories to crawl to this number. if zero, no limit.
+testrun_arts = 5                # limits the article links to crawl per category page to this number. if zero, no limit.
 
 limit_category_pages = 0        # additional category pages of 50 articles each. Maximum of 400 pages
                                 # => 1. building the archive: 400
@@ -24,7 +24,7 @@ class SueddeutscheSpider(scrapy.Spider):
 
 
     def parse(self, response):
-        db_connect(self)
+        db = db_connect(self)
         departments = response.css("#header-departments .nav-item-link").xpath("@href").extract()
         departments = limit_crawl(departments,testrun_cats)
 
@@ -32,10 +32,10 @@ class SueddeutscheSpider(scrapy.Spider):
             dep = department.split("/")[-1]
             yield scrapy.Request(department,
                                  callback=self.parse_category,
-                                 cb_kwargs=dict(department=dep))
+                                 cb_kwargs=dict(department=dep, db=db))
 
 
-    def parse_category(self, response, department):
+    def parse_category(self, response, department, db):
 
         departmentIds = {
             "politik": "sz.2.236",
@@ -61,18 +61,21 @@ class SueddeutscheSpider(scrapy.Spider):
 
         for i in range(len(links)):
             url = get_short_url(links[i],root,short_url_length)
+            ##############################################################
             print(str(i) + ": " + department + ": ToCheckandScrape: " + links[i])
-            if not is_url_in_db(self, url):           # db-query
+            if not is_url_in_db(url, db):           # db-query
                 description = articles[i].css(".sz-teaser__summary::text").get()
                 yield scrapy.Request(links[i], callback=self.parse_article,
                                      cb_kwargs=dict(description=description, url=links[i], dep=department))
+            else:
+                logging.debug("%s already in db", url)
 
         offSet = 0
         more = "https://www.sueddeutsche.de/overviewpage/additionalDepartmentTeasers?departmentId={}&offset={}&size=50&isMobile=false".format(
             departmentIds[department], offSet)
 
         while offSet/25 < limit_category_pages:  # max 1000
-            yield scrapy.Request(more, callback=self.parse_category, cb_kwargs=dict(department=department))
+            yield scrapy.Request(more, callback=self.parse_category, cb_kwargs=dict(department=department, db=db))
             offSet = offSet + 25
             more = "https://www.sueddeutsche.de/overviewpage/additionalDepartmentTeasers?departmentId={}&offset={}&size=50&isMobile=false".format(
                 departmentIds[department], offSet)
