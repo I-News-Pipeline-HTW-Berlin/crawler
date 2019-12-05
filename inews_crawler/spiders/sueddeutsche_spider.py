@@ -3,14 +3,13 @@ from scrapy import Selector
 from datetime import datetime
 import logging
 from ..items import ArticleItem
-from ..utils import db_connect,is_url_in_db, limit_crawl,get_short_url,add_host_to_url_list
-
+from ..utils import utils
 
 root = 'https://sueddeutsche.de'
-short_url_length = 9            # https://sueddeutsche.de/1.3456789
+short_url_regex = "\d(\.|\d)+$" # https://sueddeutsche.de/1.3456789
 
 testrun_cats = 3                # limits the categories to crawl to this number. if zero, no limit.
-testrun_arts = 5                # limits the article links to crawl per category page to this number. if zero, no limit.
+testrun_arts = 0                # limits the article links to crawl per category page to this number. if zero, no limit.
 
 limit_category_pages = 0        # additional category pages of 50 articles each. Maximum of 400 pages
                                 # => 1. building the archive: 400
@@ -23,10 +22,11 @@ class SueddeutscheSpider(scrapy.Spider):
     start_urls = [root]
 
 
+
     def parse(self, response):
-        db = db_connect(self)
+        db = utils.db_connect(self)
         departments = response.css("#header-departments .nav-item-link").xpath("@href").extract()
-        departments = limit_crawl(departments,testrun_cats)
+        departments = utils.limit_crawl(departments,testrun_cats)
 
         for department in departments:
             dep = department.split("/")[-1]
@@ -56,14 +56,14 @@ class SueddeutscheSpider(scrapy.Spider):
 
         articles = response.css(".sz-teaser")
         links = articles.xpath("@href").extract()
-        links = limit_crawl(links,testrun_arts)
+        links = utils.limit_crawl(links,testrun_arts)
 
 
         for i in range(len(links)):
-            url = get_short_url(links[i],root,short_url_length)
+            url = utils.get_short_url(links[i],root, short_url_regex)
             ##############################################################
-            print(str(i) + ": " + department + ": ToCheckandScrape: " + links[i])
-            if not is_url_in_db(url, db):           # db-query
+            # print(str(i) + ": " + department + ": ToCheckandScrape: " + links[i])
+            if not utils.is_url_in_db(url, db):           # db-query
                 description = articles[i].css(".sz-teaser__summary::text").get()
                 yield scrapy.Request(links[i], callback=self.parse_article,
                                      cb_kwargs=dict(description=description, url=links[i], dep=department))
@@ -125,7 +125,6 @@ class SueddeutscheSpider(scrapy.Spider):
             keywords_str = response.xpath('//meta[@name="keywords"]/@content').get()
             return keywords_str.split(",")
 
-
         # don't save paywalled article-parts
         paywall = response.xpath('//offer-page').get()
         if not paywall:
@@ -134,11 +133,13 @@ class SueddeutscheSpider(scrapy.Spider):
 
             item['crawl_time'] = datetime.now()
             item['long_url'] = url
+            item['short_url'] = utils.not_none_string(utils.get_short_url(url, root, short_url_regex))
 
             item['news_site'] = "sueddeutsche.de"
-            item['title'] = response.css(".sz-article-header__title::text").get()
-            item['authors'] = response.xpath('//article/p[@class="sz-article__byline sz-article-byline"]/a/text()').extract()
-                #response.xpath('//meta[@name="author"]/@content').extract()
+            item['title'] = response.xpath('//meta[@property="og:title"]/@content').get()
+            item['authors'] = response.xpath('//meta[@name="author"]/@content').extract()
+                # response.xpath('//article/p[@class="sz-article__byline sz-article-byline"]/a/text()').extract()
+
 
             item['description'] = description
             item['intro'] = get_intro()
@@ -150,9 +151,12 @@ class SueddeutscheSpider(scrapy.Spider):
             item['image_links'] = response.xpath('//meta[@property="og:image"]/@content').extract()
 
             links = response.xpath('//div[@class="sz-article__body sz-article-body"]/p/a/@href').extract()
-            item['links'] = add_host_to_url_list(links, root)
-            item['_id'] = get_short_url(url, root, short_url_length)
+            item['links'] = utils.add_host_to_url_list(utils, links, root)
 
-            yield item
+            # don't save article without title or text
+            if item['title'] and item['text']:
+                    yield item
+            else:
+                logging.debug("Cannot parse article: %s", url)
         else:
             logging.debug("Paywalled: %s", url)

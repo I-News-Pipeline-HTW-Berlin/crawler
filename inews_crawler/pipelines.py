@@ -38,6 +38,10 @@ class MongoPipeline(object):
 
     def process_item(self, item, spider):
         ## how to handle each post
-        self.db[self.collection_name].insert(dict(item))
-        logging.debug("Post added to MongoDB")
+        self.db[self.collection_name].ensure_index("short_url", unique=True)
+        try:
+            self.db[self.collection_name].insert(dict(item))
+        except:
+            logging.debug("Duplicate not added to MongoDB: %s", item['short_url'])
+        logging.debug("Post added to MongoDB: %s", item['short_url'])
         return item

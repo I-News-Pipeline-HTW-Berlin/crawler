@@ -3,13 +3,13 @@ from scrapy import Selector
 import logging
 from datetime import datetime
 from ..items import ArticleItem
-from ..utils import db_connect, is_url_in_db, limit_crawl, get_short_url, add_host_to_url, add_host_to_url_list
+from ..utils import utils
 
 root = 'https://taz.de'
-short_url_length = 9                # https://taz.de/!2345678/
+short_url_regex = "!\d{5,}"         # https://taz.de/!2345678/
 
 testrun_cats = 3                    # limits the categories to crawl to this number. if zero, no limit.
-testrun_arts = 5                    # limits the article links to crawl to this number. if zero, no limit.
+testrun_arts = 0                    # limits the article links to crawl to this number. if zero, no limit.
                                     # For deployment: don't forget to set the testrun variables to zero
 
 class TazSpider(scrapy.Spider):
@@ -20,11 +20,12 @@ class TazSpider(scrapy.Spider):
         yield scrapy.Request(self.start_url, callback=self.parse)
 
     def parse(self, response):
-        db = db_connect(self)
+        db = utils.db_connect(self)
+        print(db)
         categories = response.xpath('//ul[@class="news navbar newsnavigation"]/li/a/@href').extract()
-        categories = limit_crawl(categories,testrun_cats)
+        categories = utils.limit_crawl(categories,testrun_cats)
         for cat in categories:
-            cat = add_host_to_url(cat,root)
+            cat = utils.add_host_to_url(cat,root)
             yield scrapy.Request(url=cat, callback=self.parse_category, cb_kwargs=dict(db=db))
 
     def parse_category(self, response, db):
@@ -47,17 +48,17 @@ class TazSpider(scrapy.Spider):
             return linkselector
 
         linklist = response.xpath(getLinkselector()).extract()
-        linklist = limit_crawl(linklist,testrun_arts)
+        linklist = utils.limit_crawl(linklist,testrun_arts)
         if linklist:
             for url in linklist:
-                url = get_short_url(url, root, short_url_length)
-                if not is_url_in_db(url, db):      # db-query
-                    yield scrapy.Request(url, callback=self.parse_article)
+                url = utils.get_short_url(url, root, short_url_regex)
+                if not utils.is_url_in_db(url, db):      # db-query
+                    yield scrapy.Request(url, callback=self.parse_article, cb_kwargs=dict(url=url))
                 else:
                     logging.debug("%s already in db", url)
 
 
-    def parse_article(self, response):
+    def parse_article(self, response, url):
 
         def get_article_text():
             article_paragraphs = []
@@ -100,9 +101,10 @@ class TazSpider(scrapy.Spider):
         # Preparing for Output -> see items.py
         item = ArticleItem()
 
-        item['_id'] = response.xpath('//meta[@property="og:url"]/@content').get()
         item['crawl_time'] = datetime.now()
         item['long_url'] = response.xpath('//link[@rel=\"canonical\"]/@href').get()
+        # short_url = response.xpath('//meta[@property="og:url"]/@content').get()
+        item['short_url'] = url
 
         item['news_site'] = "taz.de"
         item['title'] = response.xpath('//meta[@property="og:title"]/@content').get()
@@ -114,8 +116,13 @@ class TazSpider(scrapy.Spider):
         item['keywords'] = get_keywords()
         item['published_time'] = get_pub_time()
         image_links = response.xpath('//meta[@property="og:image"]/@content').extract()
-        item['image_links'] = add_host_to_url_list(image_links, root)
+        item['image_links'] = utils.add_host_to_url_list(utils, image_links, root)
         links = response.xpath('//article /p[@xmlns=""]/a/@href').extract()
-        item['links'] = add_host_to_url_list(links, root)
+        item['links'] = utils.add_host_to_url_list(utils, links, root)
 
+        # don't save article without title or text
+        if item['title'] and item['text']:
+            yield item
+        else:
+            logging.debug("Cannot parse article: %s", url)
         yield item
