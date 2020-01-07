@@ -8,8 +8,8 @@ from ..utils import utils
 root = 'https://sueddeutsche.de'
 short_url_regex = "\d(\.|\d)+$" # https://sueddeutsche.de/1.3456789
 
-testrun_cats = 3                # limits the categories to crawl to this number. if zero, no limit.
-testrun_arts = 0                # limits the article links to crawl per category page to this number. if zero, no limit.
+testrun_cats = 1                # limits the categories to crawl to this number. if zero, no limit.
+testrun_arts = 3                # limits the article links to crawl per category page to this number. if zero, no limit.
 
 limit_category_pages = 0        # additional category pages of 50 articles each. Maximum of 400 pages
                                 # => 1. building the archive: 400
@@ -123,7 +123,10 @@ class SueddeutscheSpider(scrapy.Spider):
         # converts keywords string to list of keywords
         def get_keywords():
             keywords_str = response.xpath('//meta[@name="keywords"]/@content').get()
-            return keywords_str.split(",")
+            keywords = keywords_str.split(",")
+            if "Süddeutsche Zeitung" in keywords:
+                keywords.remove("Süddeutsche Zeitung")
+            return keywords
 
         # don't save paywalled article-parts
         paywall = response.xpath('//offer-page').get()
@@ -135,7 +138,7 @@ class SueddeutscheSpider(scrapy.Spider):
             item['long_url'] = url
             item['short_url'] = utils.not_none_string(utils.get_short_url(url, root, short_url_regex))
 
-            item['news_site'] = "sueddeutsche.de"
+            item['news_site'] = "sz"
             item['title'] = response.xpath('//meta[@property="og:title"]/@content').get()
             item['authors'] = response.xpath('//meta[@name="author"]/@content').extract()
                 # response.xpath('//article/p[@class="sz-article__byline sz-article-byline"]/a/text()').extract()

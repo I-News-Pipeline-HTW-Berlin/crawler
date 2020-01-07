@@ -8,8 +8,8 @@ from ..utils import utils
 root = 'https://taz.de'
 short_url_regex = "!\d{5,}"         # https://taz.de/!2345678/
 
-testrun_cats = 3                    # limits the categories to crawl to this number. if zero, no limit.
-testrun_arts = 0                    # limits the article links to crawl to this number. if zero, no limit.
+testrun_cats = 2                    # limits the categories to crawl to this number. if zero, no limit.
+testrun_arts = 3                    # limits the article links to crawl to this number. if zero, no limit.
                                     # For deployment: don't forget to set the testrun variables to zero
 
 class TazSpider(scrapy.Spider):
@@ -81,7 +81,12 @@ class TazSpider(scrapy.Spider):
         # converts keywords string to list of keywords
         def get_keywords():
             keywords_str = response.xpath('//meta[@name="keywords"]/@content').get()
-            return keywords_str.strip().split(", ")
+            keywords = keywords_str.strip().split(", ")
+            if "taz" in keywords:
+                keywords.remove("taz")
+            if "tageszeitung" in keywords:
+                keywords.remove("tageszeitung")
+            return keywords
 
         # if published_time is not set or wrong format, try modified, then None
         def get_pub_time():
@@ -106,7 +111,7 @@ class TazSpider(scrapy.Spider):
         # short_url = response.xpath('//meta[@property="og:url"]/@content').get()
         item['short_url'] = url
 
-        item['news_site'] = "taz.de"
+        item['news_site'] = "taz"
         item['title'] = response.xpath('//meta[@property="og:title"]/@content').get()
         item['authors'] = response.xpath('//meta[@name="author"]/@content').extract()
         item['description'] = response.xpath('//meta[@name="description"]/@content').get()
