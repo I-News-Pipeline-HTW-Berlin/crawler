@@ -4,25 +4,22 @@ import logging
 from datetime import datetime
 from ..items import ArticleItem
 from ..utils import utils
-import short_url
 
 root = 'https://www.heise.de'
-short_url_regex="\-[0-9]\d{1,10}"
+short_url_regex="\-[0-9]\d{6,}"
+full_article_addition = '?seite=all'  # if article extends over multiple pages this url addition will get the full article
 
-testrun_cats = 0  # limits the categories to crawl to this number. if zero, no limit.
-testrun_arts = 0  # limits the article links to crawl per category page to this number. if zero, no limit.
+testrun_cats = 0    # limits the categories to crawl to this number. if zero, no limit.
+testrun_arts = 0    # limits the article links to crawl per category page to this number. if zero, no limit.
 
-limit_category_pages = 0  # additional category pages of 50 articles each. Maximum of 400 pages
-pages = 2 #number of pages to crawl it each category
-
-
-# => 1. building the archive: 400
-# => 2. daily use: 0 or 1
-# don't forget to set the testrun variables to zero
+limit_pages = 4     # => 1. building the archive: 0
+                    # => 2. daily use: 3 or 4
+                    # don't forget to set the testrun variables to zero
 
 class HeiseSpider(scrapy.Spider):
     name = "heise"
     start_url = root
+    utils_obj = utils()
 
 
     def start_requests(self):
@@ -32,50 +29,67 @@ class HeiseSpider(scrapy.Spider):
         db = utils.db_connect(self)
         departments =response.css(".nav-category__list .nav-category__item a").xpath("@href").extract()
         departments = utils.limit_crawl(departments, testrun_cats)
-        firstPage = True
-        for department in departments:
-            dep = department.split("/newsticker/")[-1].split("/")[0]
-            department = root + department
-            for i in range(2,pages+1):
-                if(firstPage):
-                    yield scrapy.Request(department,
+        for department_url in departments:
+            department_url = root + department_url
+            yield scrapy.Request(department_url,
                                  callback=self.parse_category,
-                                 cb_kwargs=dict(department=dep, db=db))
-                    firstPage=False
+                                 cb_kwargs=dict(db=db, department_url=department_url, page=1, limit_pages=limit_pages))
+
+
+    def parse_category(self, response, db, department_url, page, limit_pages):
+        def find_last_page():
+            links = response.xpath('//li/a/@href').extract()
+            pagination = []
+            for link in links:
+                if "/seite-" in link:
+                    pagination.append((int)(link.split("-")[-1][:-1]))
+            return max(pagination)
+
+        if not limit_pages:
+            limit_pages = find_last_page()
+
+        if page<limit_pages:
+            dep_page = department_url + "seite-" + str(page + 1) + "/"
+            yield scrapy.Request(dep_page,
+                                 callback=self.parse_category,
+                                 cb_kwargs=dict(db=db, department_url=department_url, page=page + 1,
+                                                limit_pages=limit_pages))
+
+
+        department_name = response.xpath('//meta[@name="title"]/@content').get()
+        articles = response.xpath('//section[@class="article-teaser__list"]/article').extract()
+        limited_articles = utils.limit_crawl(articles,testrun_arts)
+
+        for article in limited_articles:
+            article_html = Selector(text=article)
+            long_url = article_html.xpath('//a/@href').get()
+            long_url = utils.add_host_to_url(self, long_url, root)
+            short_url = utils.not_none_string(utils.get_short_url(long_url, root, short_url_regex))
+            # Filter techstage articles
+            if not "techstage.de" in long_url:
+                # Filter paywalled articles
+                if not "heiseplus" in article:
+                    if short_url and not utils.is_url_in_db(short_url, db):  # db-query
+                        description = article_html.xpath('//p[@class="a-article-teaser__synopsis "]/text()').get()
+                        yield scrapy.Request(long_url+full_article_addition, callback=self.parse_article,
+                                             cb_kwargs=dict(description=description, long_url=long_url,
+                                                            short_url=short_url, dep=department_name))
+                    else:
+                        logging.info("%s already in db", short_url)
                 else:
-                    department = str(department) + "seite-" + str(i)+"/"
-                    yield scrapy.Request(department,
-                                             callback=self.parse_category,
-                                             cb_kwargs=dict(department=dep, db=db))
+                    logging.info("%s is paywalled", short_url)
 
 
-
-    def parse_category(self, response, department, db):
-
-        articles = response.css("#mitte article a ")
-        links = articles.xpath("@href").extract()
-        links = utils.limit_crawl(links,testrun_arts)
-
-        for i in range(len(links)):
-            links[i] =links[i][1:]
-            url = utils.get_short_url(links[i],root,short_url_regex)
-            links[i] = root+ "/"+links[i]
-            if True:           # db-query
-                description = articles[i].css(".a-article-teaser__synopsis::text").get()
-                yield scrapy.Request(links[i], callback=self.parse_article,
-                                     cb_kwargs=dict(description=description, url=links[i], dep=department))
-            else:
-                logging.debug("%s already in db", url)
-
-
-
-
-    def parse_article(self, response, description, url, dep):
+    def parse_article(self, response, description, long_url, short_url, dep):
+        utils_obj = utils()
 
         # Article text: paragraphs and subheadings
         def get_article_text():
             art_parags=[]
             html_article = response.css(".article-content")
+            if not html_article:
+                html_article = response.css(".article_page_text")
+
             tags = html_article.xpath('p|a|h3').extract()
             for tag in tags:
                 lines=""
@@ -88,52 +102,82 @@ class HeiseSpider(scrapy.Spider):
             for paragraph in art_parags:
                 if paragraph:
                     article_text += paragraph + "\n\n"
-            return article_text.strip()
+            text = article_text.strip()
+            if not text:
+                logging.warning("Cannot parse article text: %s", short_url)
+            return text
+
+
+        # Filter links
+        def get_links():
+            links = utils.get_item_list(utils_obj,response,'links',short_url,'css',
+                                        ['.article_page_text a::attr(href)',
+                                         '.article-content a::attr(href)'])
+            if links:
+                filtered_links = set()
+                for link in links:
+                    if not link=="/" and not link[:6] == "/forum" and not link[:6] == "mailto" and not "geizhals" in link:
+                        filtered_links.add(link)
+                return utils.add_host_to_url_list(utils_obj, list(filtered_links), root)
+            else:
+                return []
 
         def get_pub_time():
             time_str = response.xpath('//time/@datetime').get()
             try:
-                return datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')  # "2019-11-21 21:53:09"
+                return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S')  # "2020-01-03T07:13:00"
             except:
-                return None
+                try:
+                    return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S%z')  # "2020-01-03T07:13:00+01:00"
+                except:
+                    logging.warning("Cannot parse published time: %s", short_url)
+                    return None
 
-        # converts keywords string to list of keywords
-        def get_keywords():
-            keywords_str = response.xpath('//meta[@name="keywords"]/@content').get()
-            return keywords_str.split(",")
 
-        # don't save paywalled article-parts
-        paywall = response.xpath('//offer-page').get()
+        # don't save paywalled articles (not necessary because paywalled articles are filtered in parse_category)
+        def is_paywalled():
+            print(response.xpath('//a-paid-content-teaser/@class').get())
+            print(response.xpath('//div/@id').extract())
+            paywall_heise = response.xpath('//a-paid-content-teaser/@class').get() != None
+            paywall_ct = "purchase" in response.xpath('//div/@id').extract()
+            return paywall_heise & paywall_ct
 
-        if not paywall:
 
-            item = ArticleItem()
+        item = ArticleItem()
 
-            item['crawl_time'] = datetime.now()
-            item['long_url'] = url
-            item['short_url'] = utils.not_none_string(utils.get_short_url(url, root, short_url_regex))
+        item['crawl_time'] = datetime.now()
+        item['long_url'] = long_url
+        item['short_url'] = short_url
 
-            item['news_site'] = "heise.de"
-            item['title'] = response.css(".a-article-header__title::text").get().strip()
-            item['authors'] =response.css(".a-creator__name::text").get().strip()
+        item['news_site'] = "heise"
+        item['title'] = utils.get_item_string(utils_obj,response,'title',short_url,'xpath',
+                                              ['//meta[@property="og:title"]/@content',
+                                               '//meta[@name="title"]/@content'])
+        item['authors'] = utils.get_item_list(utils_obj,response,'authors',short_url,'xpath',
+                                              ['//meta[@name="author"]/@content'])
+        item['description'] = description
+        item['intro'] = utils.get_item_string(utils_obj,response,'intro',short_url,'css',
+                                              ['p.a-article-header__lead::text',
+                                               'p.article_page_intro strong::text'])
 
-            item['description'] = description
-            item['intro'] = description
 
-            item['text'] = get_article_text()
+                                              # 'xpath',
+                                              # ['//p[@class="a-article-header__lead"]/text()',
+                                              #  '//p[@class="article_page_intro"]/text()'])
 
-            item['keywords'] = get_keywords()
+        item['text'] = get_article_text()
 
-            item['published_time'] = get_pub_time()
-            item['image_links'] = response.xpath('//meta[@property="og:image"]/@content').extract()
+        item['keywords'] = utils.get_item_list_from_str(utils_obj, response,'keywords',short_url,'xpath',
+                                                        ['//meta[@name="keywords"]/@content'],", ")
 
-            links =  response.css(".article-content a").xpath("@href").extract()
-            item['links'] = utils.add_host_to_url_list(utils, links, root)
-            item["l"]=l
-            # don't save article without title or text
-            if item['title'] and item['text']:
-                yield item
-            else:
-                logging.debug("Cannot parse article: %s", url)
+        item['published_time'] = get_pub_time()
+        item['image_links'] = utils.get_item_list(utils_obj,response,'image_links',short_url,'xpath',
+                                                  ['//meta[@property="og:image"]/@content'])
+
+        item['links'] = get_links()
+
+        # don't save article without title or text
+        if item['title'] and item['text']:
+            yield item
         else:
-            logging.debug("Paywalled: %s", url)
+            logging.info("Cannot parse article: %s", short_url)

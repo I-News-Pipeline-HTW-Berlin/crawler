@@ -42,6 +42,7 @@ class MongoPipeline(object):
         try:
             self.db[self.collection_name].insert(dict(item))
         except:
-            logging.debug("Duplicate not added to MongoDB: %s", item['short_url'])
-        logging.debug("Post added to MongoDB: %s", item['short_url'])
+            logging.info("Duplicate not added to MongoDB: %s", item['short_url'])
+        else:
+            logging.info("Post added to MongoDB: %s", item['short_url'])
         return item

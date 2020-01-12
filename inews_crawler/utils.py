@@ -1,4 +1,5 @@
 # Utils for spiders
+import logging
 from pymongo import MongoClient
 from .settings import MONGO_URI, MONGO_DATABASE, COLLECTION_NAME
 import re
@@ -22,12 +23,12 @@ class utils(object):
 
     # url handling
 
-    def add_host_to_url(url, root):
-        if url and url[0] == '/':
+    def add_host_to_url(self, url, root):
+        if url and str(url)[0] == '/':
             return root + url  # for relative paths it is necessary to add scheme and host
         return url
 
-    def add_host_to_url_list(self, url_list,root):
+    def add_host_to_url_list(self, url_list, root):
         complete_urls = []
         if(url_list):
             for url in url_list:
@@ -35,7 +36,11 @@ class utils(object):
         return complete_urls
 
     def get_short_url(url, root, regex):
-        return root + '/' + re.search(regex, url).group()
+        if url:
+            regex = re.search(regex, url)
+            if regex:
+                return root + '/' + regex.group()
+        return url
 
 
     # item handling
@@ -61,3 +66,51 @@ class utils(object):
                 return list[:number]
         else:
             return list
+
+
+
+    # get_items with css and xpath option + multiple expressions
+    # - including logging warnings
+    # - avoiding None-objects
+
+    # get simple string of item property
+    def get_item_string(self, response, property_name, url, sel, expr_list):
+        for expr in expr_list:
+            if sel=="css":
+                property = response.css(expr).get()
+            elif sel=="xpath":
+                property = response.xpath(expr).get()
+            else:
+                property = ""
+            if property and property.strip():
+                return property.strip()
+        logging.warning("Cannot parse %s: %s", property_name, url)
+        return ""
+
+    # get list of item property
+    def get_item_list(self, response, property_name, url, sel, expr_list):
+        for expr in expr_list:
+            if sel=="css":
+                property = response.css(expr).extract()
+            elif sel=="xpath":
+                property = response.xpath(expr).extract()
+            else:
+                property = []
+            if property:
+                return list(set(property))
+        logging.warning("Cannot parse %s: %s", property_name, url)
+        return []
+
+    # get list of item property by splitting string
+    def get_item_list_from_str(self, response, property_name, url, sel, expr_list, split_str):
+        for expr in expr_list:
+            if sel=="css":
+                property = response.css(expr).get()
+            elif sel=="xpath":
+                property = response.xpath(expr).get()
+            else:
+                property = ""
+            if property:
+                return property.split(split_str)
+        logging.warning("Cannot parse %s: %s", property_name, url)
+        return []

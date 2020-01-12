@@ -8,8 +8,8 @@ from ..utils import utils
 root = 'https://taz.de'
 short_url_regex = "!\d{5,}"         # https://taz.de/!2345678/
 
-testrun_cats = 2                    # limits the categories to crawl to this number. if zero, no limit.
-testrun_arts = 3                    # limits the article links to crawl to this number. if zero, no limit.
+testrun_cats = 0                    # limits the categories to crawl to this number. if zero, no limit.
+testrun_arts = 0                    # limits the article links to crawl to this number. if zero, no limit.
                                     # For deployment: don't forget to set the testrun variables to zero
 
 class TazSpider(scrapy.Spider):
@@ -25,7 +25,7 @@ class TazSpider(scrapy.Spider):
         categories = response.xpath('//ul[@class="news navbar newsnavigation"]/li/a/@href').extract()
         categories = utils.limit_crawl(categories,testrun_cats)
         for cat in categories:
-            cat = utils.add_host_to_url(cat,root)
+            cat = utils.add_host_to_url(self, cat, root)
             yield scrapy.Request(url=cat, callback=self.parse_category, cb_kwargs=dict(db=db))
 
     def parse_category(self, response, db):
@@ -50,15 +50,17 @@ class TazSpider(scrapy.Spider):
         linklist = response.xpath(getLinkselector()).extract()
         linklist = utils.limit_crawl(linklist,testrun_arts)
         if linklist:
-            for url in linklist:
-                url = utils.get_short_url(url, root, short_url_regex)
-                if not utils.is_url_in_db(url, db):      # db-query
-                    yield scrapy.Request(url, callback=self.parse_article, cb_kwargs=dict(url=url))
+            for long_url in linklist:
+                short_url = utils.get_short_url(long_url, root, short_url_regex)
+                if short_url and not utils.is_url_in_db(short_url, db):  # db-query
+                    yield scrapy.Request(short_url+"/", callback=self.parse_article,
+                                         cb_kwargs=dict(short_url=short_url, long_url=long_url))
                 else:
-                    logging.debug("%s already in db", url)
+                    logging.info("%s already in db", short_url)
 
 
-    def parse_article(self, response, url):
+    def parse_article(self, response, short_url, long_url):
+        utils_obj = utils()
 
         def get_article_text():
             article_paragraphs = []
@@ -76,17 +78,11 @@ class TazSpider(scrapy.Spider):
             for paragraph in article_paragraphs:
                 if paragraph:
                     article_text += paragraph + "\n\n"
-            return article_text.strip()
+            text = article_text.strip()
+            if not text:
+                logging.warning("Cannot parse article text: %s", short_url)
+            return text
 
-        # converts keywords string to list of keywords
-        def get_keywords():
-            keywords_str = response.xpath('//meta[@name="keywords"]/@content').get()
-            keywords = keywords_str.strip().split(", ")
-            if "taz" in keywords:
-                keywords.remove("taz")
-            if "tageszeitung" in keywords:
-                keywords.remove("tageszeitung")
-            return keywords
 
         # if published_time is not set or wrong format, try modified, then None
         def get_pub_time():
@@ -94,6 +90,7 @@ class TazSpider(scrapy.Spider):
                 try:
                     return datetime.strptime(time_str,'%Y-%m-%dT%H:%M:%S%z')  # "2019-11-14T10:50:00+01:00"
                 except:
+                    logging.warning("Cannot parse published time: %s", short_url)
                     return None
 
             published_time_string = response.xpath('//meta[@property="article:published_time"]/@content').get()
@@ -107,27 +104,36 @@ class TazSpider(scrapy.Spider):
         item = ArticleItem()
 
         item['crawl_time'] = datetime.now()
-        item['long_url'] = response.xpath('//link[@rel=\"canonical\"]/@href').get()
-        # short_url = response.xpath('//meta[@property="og:url"]/@content').get()
-        item['short_url'] = url
+        item['long_url'] = utils.add_host_to_url(utils_obj, long_url, root)
+        item['short_url'] = short_url
 
         item['news_site'] = "taz"
-        item['title'] = response.xpath('//meta[@property="og:title"]/@content').get()
-        item['authors'] = response.xpath('//meta[@name="author"]/@content').extract()
-        item['description'] = response.xpath('//meta[@name="description"]/@content').get()
-        item['intro'] = response.xpath('//article/p[@class="intro "]/text()').get()
+        item['title'] = utils.get_item_string(utils_obj, response, 'title', short_url, 'xpath',
+                                              ['//meta[@property="og:title"]/@content'])
+        item['authors'] = utils.get_item_list(utils_obj, response, 'authors', short_url, 'xpath',
+                                              ['//meta[@name="author"]/@content'])
+        item['description'] = utils.get_item_string(utils_obj, response, 'description', short_url, 'xpath',
+                                                    ['//meta[@name="description"]/@content'])
+        item['intro'] = utils.get_item_string(utils_obj, response, 'intro', short_url, 'xpath',
+                                              ['//article/p[@class="intro "]/text()'])
         item['text'] = get_article_text()
 
-        item['keywords'] = get_keywords()
+        keywords = utils.get_item_list_from_str(utils_obj, response, 'keywords', short_url, 'xpath',
+                                                ['//meta[@name="keywords"]/@content'],', ')
+        item['keywords'] = list(set(keywords) - set(["taz", "tageszeitung "]))
         item['published_time'] = get_pub_time()
-        image_links = response.xpath('//meta[@property="og:image"]/@content').extract()
-        item['image_links'] = utils.add_host_to_url_list(utils, image_links, root)
-        links = response.xpath('//article /p[@xmlns=""]/a/@href').extract()
-        item['links'] = utils.add_host_to_url_list(utils, links, root)
+
+        image_links = utils.get_item_list(utils_obj, response, 'image_links', short_url, 'xpath',
+                                          ['//meta[@property="og:image"]/@content'])
+        item['image_links'] = utils.add_host_to_url_list(utils_obj, image_links, root)
+
+        links = utils.get_item_list(utils_obj, response, 'links', short_url, 'xpath',
+                                    ['//article /p[@xmlns=""]/a/@href'])
+        item['links'] = utils.add_host_to_url_list(utils_obj, links, root)
 
         # don't save article without title or text
         if item['title'] and item['text']:
             yield item
         else:
-            logging.debug("Cannot parse article: %s", url)
+            logging.info("Cannot parse article: %s", short_url)
         yield item
