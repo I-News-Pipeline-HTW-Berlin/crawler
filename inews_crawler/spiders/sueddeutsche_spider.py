@@ -28,14 +28,14 @@ class SueddeutscheSpider(scrapy.Spider):
         departments = response.css("#header-departments .nav-item-link").xpath("@href").extract()
         departments = utils.limit_crawl(departments,testrun_cats)
 
-        for department in departments:
-            dep = department.split("/")[-1]
-            yield scrapy.Request(department,
+        for department_url in departments:
+            dep = department_url.split("/")[-1]
+            yield scrapy.Request(department_url,
                                  callback=self.parse_category,
-                                 cb_kwargs=dict(department=dep, db=db))
+                                 cb_kwargs=dict(department=dep, department_url=department_url, db=db))
 
 
-    def parse_category(self, response, department, db):
+    def parse_category(self, response, department, department_url, db):
 
         departmentIds = {
             "politik": "sz.2.236",
@@ -54,6 +54,8 @@ class SueddeutscheSpider(scrapy.Spider):
             "auto": "sz.2.232"
         }
 
+        utils_obj = utils()
+
         articles = response.css(".sz-teaser")
         links = articles.xpath("@href").extract()
         links = utils.limit_crawl(links,testrun_arts)
@@ -62,7 +64,7 @@ class SueddeutscheSpider(scrapy.Spider):
         for i in range(len(links)):
             short_url = utils.get_short_url(links[i],root, short_url_regex)
             if short_url and not utils.is_url_in_db(short_url, db):           # db-query
-                description = articles[i].css(".sz-teaser__summary::text").get()
+                description = utils.get_item_string(utils_obj, articles[i], 'description', department_url, 'css', [".sz-teaser__summary::text"])
                 yield scrapy.Request(links[i]+full_article_addition, callback=self.parse_article,
                                      cb_kwargs=dict(description=description, long_url=links[i], short_url=short_url,
                                                     dep=department))
@@ -148,7 +150,7 @@ class SueddeutscheSpider(scrapy.Spider):
 
             keywords = utils.get_item_list_from_str(utils_obj, response, 'keywords', short_url, 'xpath',
                                                             ['//meta[@name="keywords"]/@content'],',')
-            item['keywords'] = list(set(keywords) - set(["Süddeutsche Zeitung"]))
+            item['keywords'] = list(set(keywords) - {"Süddeutsche Zeitung"})
 
             item['published_time'] = get_pub_time()
             item['image_links'] = utils.get_item_list(utils_obj, response, 'image_links', short_url, 'xpath',

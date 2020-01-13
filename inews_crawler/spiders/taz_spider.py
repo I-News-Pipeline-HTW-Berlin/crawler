@@ -120,7 +120,7 @@ class TazSpider(scrapy.Spider):
 
         keywords = utils.get_item_list_from_str(utils_obj, response, 'keywords', short_url, 'xpath',
                                                 ['//meta[@name="keywords"]/@content'],', ')
-        item['keywords'] = list(set(keywords) - set(["taz", "tageszeitung "]))
+        item['keywords'] = list(set(keywords) - {"taz", "tageszeitung "})
         item['published_time'] = get_pub_time()
 
         image_links = utils.get_item_list(utils_obj, response, 'image_links', short_url, 'xpath',
