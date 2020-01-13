@@ -12,7 +12,7 @@ full_article_addition = '?seite=all'  # if article extends over multiple pages t
 testrun_cats = 0    # limits the categories to crawl to this number. if zero, no limit.
 testrun_arts = 0    # limits the article links to crawl per category page to this number. if zero, no limit.
 
-limit_pages = 4     # => 1. building the archive: 0
+limit_pages = 1     # => 1. building the archive: 0
                     # => 2. daily use: 3 or 4
                     # don't forget to set the testrun variables to zero
 
@@ -37,6 +37,7 @@ class HeiseSpider(scrapy.Spider):
 
 
     def parse_category(self, response, db, department_url, page, limit_pages):
+        utils_obj = utils()
         def find_last_page():
             links = response.xpath('//li/a/@href').extract()
             pagination = []
@@ -56,31 +57,33 @@ class HeiseSpider(scrapy.Spider):
                                                 limit_pages=limit_pages))
 
 
-        department_name = response.xpath('//meta[@name="title"]/@content').get()
+        department_name = utils.get_item_string(utils_obj, response, 'department', department_url, 'xpath',
+                                                ['//meta[@name="title"]/@content'])
         articles = response.xpath('//section[@class="article-teaser__list"]/article').extract()
         limited_articles = utils.limit_crawl(articles,testrun_arts)
 
         for article in limited_articles:
             article_html = Selector(text=article)
             long_url = article_html.xpath('//a/@href').get()
-            long_url = utils.add_host_to_url(self, long_url, root)
+            long_url = utils.add_host_to_url(utils_obj, long_url, root)
             short_url = utils.not_none_string(utils.get_short_url(long_url, root, short_url_regex))
             # Filter techstage articles
             if not "techstage.de" in long_url:
                 # Filter paywalled articles
                 if not "heiseplus" in article:
                     if short_url and not utils.is_url_in_db(short_url, db):  # db-query
-                        description = article_html.xpath('//p[@class="a-article-teaser__synopsis "]/text()').get()
+                        description = utils.get_item_string(utils_obj, article_html, 'description', department_url, 'xpath',
+                                                            ['//p[@class="a-article-teaser__synopsis "]/text()'])
                         yield scrapy.Request(long_url+full_article_addition, callback=self.parse_article,
                                              cb_kwargs=dict(description=description, long_url=long_url,
-                                                            short_url=short_url, dep=department_name))
+                                                            short_url=short_url, department_name=department_name))
                     else:
                         logging.info("%s already in db", short_url)
                 else:
                     logging.info("%s is paywalled", short_url)
 
 
-    def parse_article(self, response, description, long_url, short_url, dep):
+    def parse_article(self, response, description, long_url, short_url, department_name):
         utils_obj = utils()
 
         # Article text: paragraphs and subheadings
@@ -160,15 +163,14 @@ class HeiseSpider(scrapy.Spider):
                                               ['p.a-article-header__lead::text',
                                                'p.article_page_intro strong::text'])
 
-
-                                              # 'xpath',
-                                              # ['//p[@class="a-article-header__lead"]/text()',
-                                              #  '//p[@class="article_page_intro"]/text()'])
-
         item['text'] = get_article_text()
 
-        item['keywords'] = utils.get_item_list_from_str(utils_obj, response,'keywords',short_url,'xpath',
+        keywords = utils.get_item_list_from_str(utils_obj, response,'keywords',short_url,'xpath',
                                                         ['//meta[@name="keywords"]/@content'],", ")
+        # add department name to keywords for UIMA mapping
+        if department_name:
+            keywords.append(department_name)
+        item['keywords'] = keywords
 
         item['published_time'] = get_pub_time()
         item['image_links'] = utils.get_item_list(utils_obj,response,'image_links',short_url,'xpath',
