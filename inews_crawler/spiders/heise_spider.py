@@ -12,7 +12,7 @@ full_article_addition = '?seite=all'  # if article extends over multiple pages t
 testrun_cats = 0    # limits the categories to crawl to this number. if zero, no limit.
 testrun_arts = 0    # limits the article links to crawl per category page to this number. if zero, no limit.
 
-limit_pages = 1     # => 1. building the archive: 0
+limit_pages = 0     # => 1. building the archive: 0
                     # => 2. daily use: 3 or 4
                     # don't forget to set the testrun variables to zero
 
