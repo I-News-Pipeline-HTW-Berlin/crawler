@@ -22,20 +22,27 @@ NEWSPIDER_MODULE = 'inews_crawler.spiders'
 # WARNING: This is only a template - don't commit any changes before you take out your database password !!!
 # https://api.mongodb.com/python/current/examples/authentication.html
 
-MONGO_DATABASE='articles'
-MONGO_URI = 'mongodb://localhost:27017/'
+# MONGO_DATABASE='articles'
+# MONGO_URI = 'mongodb://localhost:27017/'
 
-# MONGO_USER = os.environ.get("MONGO_USER")
-# MONGO_HOST = os.environ.get("MONGO_HOST")
-# MONGO_DATABASE = os.environ.get("MONGO_DATABASE")
-# MONGO_PWD = os.environ.get("MONGO_PWD")
-# AUTH_MECHANISM = 'SCRAM-SHA-1'
+MONGO_USER = os.environ.get("MONGO_USER")
+MONGO_HOST = os.environ.get("MONGO_HOST")
+MONGO_DATABASE = os.environ.get("MONGO_DATABASE")
+MONGO_PWD = os.environ.get("MONGO_PWD")
+AUTH_MECHANISM = 'SCRAM-SHA-1'
 
-# MONGO_URI = 'mongodb://' + MONGO_USER + ':' + MONGO_PWD + '@' + MONGO_HOST \
-#             + '/?authSource=' + MONGO_DATABASE + '&authMechanism=' + AUTH_MECHANISM
+MONGO_URI = 'mongodb://' + MONGO_USER + ':' + MONGO_PWD + '@' + MONGO_HOST \
+            + '/?authSource=' + MONGO_DATABASE + '&authMechanism=' + AUTH_MECHANISM
 
-COLLECTION_NAME = 'scraped_articles'
+ARTICLE_COLLECTION_NAME = 'scraped_articles'
+LOG_COLLECTION_NAME = 'log_crawler'
+
 #############################################################################################################
+
+# Minimum Level to log. Scrapy stats are INFO.
+LOG_LEVEL = 'INFO'
+LOG_FILE = 'crawler.log'
+
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'inews_crawler (+http://www.yourdomain.com)'

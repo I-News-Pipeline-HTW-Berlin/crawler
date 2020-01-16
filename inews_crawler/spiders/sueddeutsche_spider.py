@@ -24,7 +24,6 @@ class SueddeutscheSpider(scrapy.Spider):
 
 
     def parse(self, response):
-        db = utils.db_connect(self)
         departments = response.css("#header-departments .nav-item-link").xpath("@href").extract()
         departments = utils.limit_crawl(departments,testrun_cats)
 
@@ -32,10 +31,10 @@ class SueddeutscheSpider(scrapy.Spider):
             dep = department_url.split("/")[-1]
             yield scrapy.Request(department_url,
                                  callback=self.parse_category,
-                                 cb_kwargs=dict(department=dep, department_url=department_url, db=db))
+                                 cb_kwargs=dict(department=dep, department_url=department_url))
 
 
-    def parse_category(self, response, department, department_url, db):
+    def parse_category(self, response, department, department_url):
 
         departmentIds = {
             "politik": "sz.2.236",
@@ -63,12 +62,13 @@ class SueddeutscheSpider(scrapy.Spider):
 
         for i in range(len(links)):
             short_url = utils.get_short_url(links[i],root, short_url_regex)
-            if short_url and not utils.is_url_in_db(short_url, db):           # db-query
-                description = utils.get_item_string(utils_obj, articles[i], 'description', department_url, 'css', [".sz-teaser__summary::text"])
+            if short_url and not utils.is_url_in_db(short_url):           # db-query
+                description = utils.get_item_string(utils_obj, articles[i], 'description', department_url, 'css', [".sz-teaser__summary::text"], self.name)
                 yield scrapy.Request(links[i]+full_article_addition, callback=self.parse_article,
                                      cb_kwargs=dict(description=description, long_url=links[i], short_url=short_url,
                                                     dep=department))
             else:
+                utils.log_event(utils_obj, self.name, short_url, 'exists', 'info')
                 logging.info("%s already in db", short_url)
 
         offSet = 0
@@ -76,7 +76,7 @@ class SueddeutscheSpider(scrapy.Spider):
             departmentIds[department], offSet)
 
         while offSet/25 < limit_pages:  # max 1000
-            yield scrapy.Request(more, callback=self.parse_category, cb_kwargs=dict(department=department, db=db))
+            yield scrapy.Request(more, callback=self.parse_category, cb_kwargs=dict(department=department))
             offSet = offSet + 25
             more = "https://www.sueddeutsche.de/overviewpage/additionalDepartmentTeasers?departmentId={}&offset={}&size=50&isMobile=false".format(
                 departmentIds[department], offSet)
@@ -94,6 +94,7 @@ class SueddeutscheSpider(scrapy.Spider):
             else:
                 intro = response.css(".sz-article-intro__abstract-text::text").get()
             if not intro:
+                utils.log_event(utils_obj, self.name, short_url, 'intro', 'warning')
                 logging.warning("Cannot parse intro: %s", short_url)
                 intro = ""
             return intro
@@ -116,6 +117,7 @@ class SueddeutscheSpider(scrapy.Spider):
                     article_text += paragraph + "\n\n"
             text = article_text.strip()
             if not text:
+                utils.log_event(utils_obj, self.name, short_url, 'text', 'warning')
                 logging.warning("Cannot parse article text: %s", short_url)
             return text
 
@@ -124,6 +126,7 @@ class SueddeutscheSpider(scrapy.Spider):
             try:
                 return datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')  # "2019-11-21 21:53:09"
             except:
+                utils.log_event(utils_obj, self.name, short_url, 'published_time', 'warning')
                 logging.warning("Cannot parse published time: %s", short_url)
                 return None
 
@@ -140,24 +143,24 @@ class SueddeutscheSpider(scrapy.Spider):
 
             item['news_site'] = "sz"
             item['title'] = utils.get_item_string(utils_obj, response, 'title', short_url, 'xpath',
-                                                  ['//meta[@property="og:title"]/@content'])
+                                                  ['//meta[@property="og:title"]/@content'], self.name)
             item['authors'] = utils.get_item_list(utils_obj, response, 'authors', short_url, 'xpath',
-                                                    ['//meta[@name="author"]/@content'])
+                                                    ['//meta[@name="author"]/@content'], self.name)
 
             item['description'] = description
             item['intro'] = get_intro()
             item['text'] = get_article_text()
 
             keywords = utils.get_item_list_from_str(utils_obj, response, 'keywords', short_url, 'xpath',
-                                                            ['//meta[@name="keywords"]/@content'],',')
+                                                            ['//meta[@name="keywords"]/@content'],',', self.name)
             item['keywords'] = list(set(keywords) - {"Süddeutsche Zeitung"})
 
             item['published_time'] = get_pub_time()
             item['image_links'] = utils.get_item_list(utils_obj, response, 'image_links', short_url, 'xpath',
-                                                               ['//meta[@property="og:image"]/@content'])
+                                                               ['//meta[@property="og:image"]/@content'], self.name)
 
             links =  utils.get_item_list(utils_obj, response, 'links', short_url, 'xpath',
-                                         ['//div[@class="sz-article__body sz-article-body"]/p/a/@href'])
+                                         ['//div[@class="sz-article__body sz-article-body"]/p/a/@href'], self.name)
             item['links'] = utils.add_host_to_url_list(utils_obj, links, root)
 
             # don't save article without title or text
@@ -166,4 +169,5 @@ class SueddeutscheSpider(scrapy.Spider):
             else:
                 logging.info("Cannot parse article: %s", short_url)
         else:
+            utils.log_event(utils_obj, self.name, short_url, 'paywall', 'info')
             logging.info("Paywalled: %s", short_url)

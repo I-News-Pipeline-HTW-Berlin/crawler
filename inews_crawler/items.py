@@ -24,10 +24,20 @@ class ArticleItem(scrapy.Item):
     image_links = scrapy.Field()    # List(String)
     links = scrapy.Field()          # List(String)
 
-
     def __repr__(self):
         """only print out title after exiting the pipeline"""
         # return repr({"title": self["title"]})
         return ""
+
+class LogItem(scrapy.Item):
+    log_time = scrapy.Field()   # datetime.now()
+    url = scrapy.Field()        # String 'https://taz.de/!5642421/'
+    news_site = scrapy.Field()  # String: taz, sz, heise
+    property = scrapy.Field()   # String: text, title, keywords, ...
+    level = scrapy.Field()      # String: warning, info
+
+
+
+
 
 

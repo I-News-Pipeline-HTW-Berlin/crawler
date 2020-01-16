@@ -2,7 +2,7 @@ import scrapy
 from scrapy import Selector
 import logging
 from datetime import datetime
-from ..items import ArticleItem
+from ..items import ArticleItem, LogItem
 from ..utils import utils
 
 root = 'https://taz.de'
@@ -20,15 +20,13 @@ class TazSpider(scrapy.Spider):
         yield scrapy.Request(self.start_url, callback=self.parse)
 
     def parse(self, response):
-        db = utils.db_connect(self)
-        print(db)
         categories = response.xpath('//ul[@class="news navbar newsnavigation"]/li/a/@href').extract()
         categories = utils.limit_crawl(categories,testrun_cats)
         for cat in categories:
             cat = utils.add_host_to_url(self, cat, root)
-            yield scrapy.Request(url=cat, callback=self.parse_category, cb_kwargs=dict(db=db))
+            yield scrapy.Request(url=cat, callback=self.parse_category)
 
-    def parse_category(self, response, db):
+    def parse_category(self, response):
         def getLinkselector():
             # taz.de has different classes of links which direct to an article
             linkclasses = [
@@ -52,10 +50,11 @@ class TazSpider(scrapy.Spider):
         if linklist:
             for long_url in linklist:
                 short_url = utils.get_short_url(long_url, root, short_url_regex)
-                if short_url and not utils.is_url_in_db(short_url, db):  # db-query
+                if short_url and not utils.is_url_in_db(short_url):  # db-query
                     yield scrapy.Request(short_url+"/", callback=self.parse_article,
                                          cb_kwargs=dict(short_url=short_url, long_url=long_url))
                 else:
+                    utils.log_event(utils(), self.name, short_url, 'exists', 'info')
                     logging.info("%s already in db", short_url)
 
 
@@ -80,6 +79,7 @@ class TazSpider(scrapy.Spider):
                     article_text += paragraph + "\n\n"
             text = article_text.strip()
             if not text:
+                utils.log_event(utils_obj, self.name, short_url, 'text', 'warning')
                 logging.warning("Cannot parse article text: %s", short_url)
             return text
 
@@ -90,6 +90,7 @@ class TazSpider(scrapy.Spider):
                 try:
                     return datetime.strptime(time_str,'%Y-%m-%dT%H:%M:%S%z')  # "2019-11-14T10:50:00+01:00"
                 except:
+                    utils.log_event(utils_obj, self.name, short_url, 'published_time', 'warning')
                     logging.warning("Cannot parse published time: %s", short_url)
                     return None
 
@@ -109,26 +110,26 @@ class TazSpider(scrapy.Spider):
 
         item['news_site'] = "taz"
         item['title'] = utils.get_item_string(utils_obj, response, 'title', short_url, 'xpath',
-                                              ['//meta[@property="og:title"]/@content'])
+                                              ['//meta[@property="og:title"]/@content'], self.name)
         item['authors'] = utils.get_item_list(utils_obj, response, 'authors', short_url, 'xpath',
-                                              ['//meta[@name="author"]/@content'])
+                                              ['//meta[@name="author"]/@content'], self.name)
         item['description'] = utils.get_item_string(utils_obj, response, 'description', short_url, 'xpath',
-                                                    ['//meta[@name="description"]/@content'])
+                                                    ['//meta[@name="description"]/@content'], self.name)
         item['intro'] = utils.get_item_string(utils_obj, response, 'intro', short_url, 'xpath',
-                                              ['//article/p[@class="intro "]/text()'])
+                                              ['//article/p[@class="intro "]/text()'], self.name)
         item['text'] = get_article_text()
 
         keywords = utils.get_item_list_from_str(utils_obj, response, 'keywords', short_url, 'xpath',
-                                                ['//meta[@name="keywords"]/@content'],', ')
+                                                ['//meta[@name="keywords"]/@content'],', ', self.name)
         item['keywords'] = list(set(keywords) - {"taz", "tageszeitung "})
         item['published_time'] = get_pub_time()
 
         image_links = utils.get_item_list(utils_obj, response, 'image_links', short_url, 'xpath',
-                                          ['//meta[@property="og:image"]/@content'])
+                                          ['//meta[@property="og:image"]/@content'], self.name)
         item['image_links'] = utils.add_host_to_url_list(utils_obj, image_links, root)
 
         links = utils.get_item_list(utils_obj, response, 'links', short_url, 'xpath',
-                                    ['//article /p[@xmlns=""]/a/@href'])
+                                    ['//article /p[@xmlns=""]/a/@href'], self.name)
         item['links'] = utils.add_host_to_url_list(utils_obj, links, root)
 
         # don't save article without title or text
@@ -136,4 +137,3 @@ class TazSpider(scrapy.Spider):
             yield item
         else:
             logging.info("Cannot parse article: %s", short_url)
-        yield item

@@ -26,17 +26,16 @@ class HeiseSpider(scrapy.Spider):
         yield scrapy.Request(self.start_url, callback=self.parse)
 
     def parse(self, response):
-        db = utils.db_connect(self)
         departments =response.css(".nav-category__list .nav-category__item a").xpath("@href").extract()
         departments = utils.limit_crawl(departments, testrun_cats)
         for department_url in departments:
             department_url = root + department_url
             yield scrapy.Request(department_url,
                                  callback=self.parse_category,
-                                 cb_kwargs=dict(db=db, department_url=department_url, page=1, limit_pages=limit_pages))
+                                 cb_kwargs=dict(department_url=department_url, page=1, limit_pages=limit_pages))
 
 
-    def parse_category(self, response, db, department_url, page, limit_pages):
+    def parse_category(self, response, department_url, page, limit_pages):
         utils_obj = utils()
         def find_last_page():
             links = response.xpath('//li/a/@href').extract()
@@ -53,12 +52,12 @@ class HeiseSpider(scrapy.Spider):
             dep_page = department_url + "seite-" + str(page + 1) + "/"
             yield scrapy.Request(dep_page,
                                  callback=self.parse_category,
-                                 cb_kwargs=dict(db=db, department_url=department_url, page=page + 1,
+                                 cb_kwargs=dict(department_url=department_url, page=page + 1,
                                                 limit_pages=limit_pages))
 
 
         department_name = utils.get_item_string(utils_obj, response, 'department', department_url, 'xpath',
-                                                ['//meta[@name="title"]/@content'])
+                                                ['//meta[@name="title"]/@content'], self.name)
         articles = response.xpath('//section[@class="article-teaser__list"]/article').extract()
         limited_articles = utils.limit_crawl(articles,testrun_arts)
 
@@ -71,15 +70,17 @@ class HeiseSpider(scrapy.Spider):
             if not "techstage.de" in long_url:
                 # Filter paywalled articles
                 if not "heiseplus" in article:
-                    if short_url and not utils.is_url_in_db(short_url, db):  # db-query
+                    if short_url and not utils.is_url_in_db(short_url):  # db-query
                         description = utils.get_item_string(utils_obj, article_html, 'description', department_url, 'xpath',
-                                                            ['//p[@class="a-article-teaser__synopsis "]/text()'])
+                                                            ['//p[@class="a-article-teaser__synopsis "]/text()'], self.name)
                         yield scrapy.Request(long_url+full_article_addition, callback=self.parse_article,
                                              cb_kwargs=dict(description=description, long_url=long_url,
                                                             short_url=short_url, department_name=department_name))
                     else:
+                        utils.log_event(utils_obj, self.name, short_url, 'exists', 'info')
                         logging.info("%s already in db", short_url)
                 else:
+                    utils.log_event(utils_obj, self.name, short_url, 'paywall', 'info')
                     logging.info("%s is paywalled", short_url)
 
 
@@ -107,6 +108,7 @@ class HeiseSpider(scrapy.Spider):
                     article_text += paragraph + "\n\n"
             text = article_text.strip()
             if not text:
+                utils.log_event(utils_obj, self.name, short_url, 'text', 'warning')
                 logging.warning("Cannot parse article text: %s", short_url)
             return text
 
@@ -115,7 +117,7 @@ class HeiseSpider(scrapy.Spider):
         def get_links():
             links = utils.get_item_list(utils_obj,response,'links',short_url,'css',
                                         ['.article_page_text a::attr(href)',
-                                         '.article-content a::attr(href)'])
+                                         '.article-content a::attr(href)'], self.name)
             if links:
                 filtered_links = set()
                 for link in links:
@@ -133,6 +135,7 @@ class HeiseSpider(scrapy.Spider):
                 try:
                     return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S%z')  # "2020-01-03T07:13:00+01:00"
                 except:
+                    utils.log_event(utils_obj, self.name, short_url, 'published_time', 'warning')
                     logging.warning("Cannot parse published time: %s", short_url)
                     return None
 
@@ -155,18 +158,18 @@ class HeiseSpider(scrapy.Spider):
         item['news_site'] = "heise"
         item['title'] = utils.get_item_string(utils_obj,response,'title',short_url,'xpath',
                                               ['//meta[@property="og:title"]/@content',
-                                               '//meta[@name="title"]/@content'])
+                                               '//meta[@name="title"]/@content'], self.name)
         item['authors'] = utils.get_item_list(utils_obj,response,'authors',short_url,'xpath',
-                                              ['//meta[@name="author"]/@content'])
+                                              ['//meta[@name="author"]/@content'], self.name)
         item['description'] = description
         item['intro'] = utils.get_item_string(utils_obj,response,'intro',short_url,'css',
                                               ['p.a-article-header__lead::text',
-                                               'p.article_page_intro strong::text'])
+                                               'p.article_page_intro strong::text'], self.name)
 
         item['text'] = get_article_text()
 
         keywords = utils.get_item_list_from_str(utils_obj, response,'keywords',short_url,'xpath',
-                                                        ['//meta[@name="keywords"]/@content'],", ")
+                                                        ['//meta[@name="keywords"]/@content'],", ", self.name)
         # add department name to keywords for UIMA mapping
         if department_name:
             keywords.append(department_name)
@@ -174,7 +177,7 @@ class HeiseSpider(scrapy.Spider):
 
         item['published_time'] = get_pub_time()
         item['image_links'] = utils.get_item_list(utils_obj,response,'image_links',short_url,'xpath',
-                                                  ['//meta[@property="og:image"]/@content'])
+                                                  ['//meta[@property="og:image"]/@content'], self.name)
 
         item['links'] = get_links()
 
