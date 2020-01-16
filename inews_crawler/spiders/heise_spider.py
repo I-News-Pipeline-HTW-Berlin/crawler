@@ -186,3 +186,4 @@ class HeiseSpider(scrapy.Spider):
             yield item
         else:
             logging.info("Cannot parse article: %s", short_url)
+            utils.log_event(utils_obj, self.name, short_url, 'missingImportantProperty', 'info')

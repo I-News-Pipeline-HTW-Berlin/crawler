@@ -2,7 +2,7 @@ import scrapy
 from scrapy import Selector
 import logging
 from datetime import datetime
-from ..items import ArticleItem, LogItem
+from ..items import ArticleItem
 from ..utils import utils
 
 root = 'https://taz.de'
@@ -55,7 +55,7 @@ class TazSpider(scrapy.Spider):
                                          cb_kwargs=dict(short_url=short_url, long_url=long_url))
                 else:
                     utils.log_event(utils(), self.name, short_url, 'exists', 'info')
-                    logging.info("%s already in db", short_url)
+                    logging.info('%s already in db', short_url)
 
 
     def parse_article(self, response, short_url, long_url):
@@ -137,3 +137,5 @@ class TazSpider(scrapy.Spider):
             yield item
         else:
             logging.info("Cannot parse article: %s", short_url)
+            utils.log_event(utils_obj, self.name, short_url, 'missingImportantProperty', 'info')
+

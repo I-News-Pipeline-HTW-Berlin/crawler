@@ -168,6 +168,7 @@ class SueddeutscheSpider(scrapy.Spider):
                     yield item
             else:
                 logging.info("Cannot parse article: %s", short_url)
+                utils.log_event(utils_obj, self.name, short_url, 'missingImportantProperty', 'info')
         else:
             utils.log_event(utils_obj, self.name, short_url, 'paywall', 'info')
             logging.info("Paywalled: %s", short_url)
