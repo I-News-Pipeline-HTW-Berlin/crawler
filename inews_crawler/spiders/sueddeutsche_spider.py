@@ -76,7 +76,7 @@ class SueddeutscheSpider(scrapy.Spider):
             departmentIds[department], offSet)
 
         while offSet/25 < limit_pages:  # max 1000
-            yield scrapy.Request(more, callback=self.parse_category, cb_kwargs=dict(department=department))
+            yield scrapy.Request(more, callback=self.parse_category, cb_kwargs=dict(department=department, department_url=more))
             offSet = offSet + 25
             more = "https://www.sueddeutsche.de/overviewpage/additionalDepartmentTeasers?departmentId={}&offset={}&size=50&isMobile=false".format(
                 departmentIds[department], offSet)
