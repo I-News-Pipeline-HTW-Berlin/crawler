@@ -54,6 +54,8 @@ coverage.xml
 # Rope
 .ropeproject
 
+mongo_elastic/connector_security.py
+
 # Django stuff:
 *.log
 *.pot

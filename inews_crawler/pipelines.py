@@ -7,12 +7,18 @@
 
 
 import logging
+from datetime import datetime
+
 import pymongo
-from .settings import COLLECTION_NAME
+
+from .utils import utils
+from inews_crawler.items import ArticleItem, LogItem
+from .settings import ARTICLE_COLLECTION_NAME, LOG_COLLECTION_NAME
 
 class MongoPipeline(object):
 
-    collection_name = COLLECTION_NAME
+    article_collection_name = ARTICLE_COLLECTION_NAME
+    log_collection_name = LOG_COLLECTION_NAME
 
     def __init__(self, mongo_uri, mongo_db):
         self.mongo_uri = mongo_uri
@@ -37,12 +43,16 @@ class MongoPipeline(object):
         self.client.close()
 
     def process_item(self, item, spider):
+        log_item = LogItem()
+        collection_name = self.article_collection_name
         ## how to handle each post
-        self.db[self.collection_name].ensure_index("short_url", unique=True)
+        self.db[collection_name].ensure_index("short_url", unique=True)
         try:
-            self.db[self.collection_name].insert(dict(item))
+            self.db[collection_name].insert(dict(item))
         except:
             logging.info("Duplicate not added to MongoDB: %s", item['short_url'])
+            utils.log_event(utils(), item['news_site'], item['short_url'], 'duplicate', 'info')
         else:
             logging.info("Post added to MongoDB: %s", item['short_url'])
+            utils.log_event(utils(), item['news_site'], item['short_url'], 'added', 'info')
         return item

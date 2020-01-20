@@ -107,6 +107,15 @@ execute in terminal (in folder crawler):
 - INFO: duplicate messages, database messages ("Post added to MongoDB", "already in db"), paywall message ("is paywalled")
 - WARNING: property was not found ("Cannot parse title",...)
 
+INFO and WARNING events will be saved as log items in the database in the collection `log_crawler`, which is connected to ElasticSearch and Kibana by executing `connector.py`.
+
+    log_time            # datetime.now()
+    url                 # String 'https://taz.de/!5642421/'
+    news_site           # String: taz, sz, heise
+    title               # String
+    property            # String: text, title, keywords, ...
+    level               # String: warning, info
+
 ----------------------------------------------------------
 
 Happy crawling!

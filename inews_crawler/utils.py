@@ -1,44 +1,57 @@
 # Utils for spiders
+from datetime import datetime
 import logging
 from pymongo import MongoClient
-from .settings import MONGO_URI, MONGO_DATABASE, COLLECTION_NAME
+from .settings import MONGO_URI, MONGO_DATABASE, ARTICLE_COLLECTION_NAME, LOG_COLLECTION_NAME
 import re
+from .items import LogItem
 
 
-collection_name = COLLECTION_NAME
+
+article_collection_name = ARTICLE_COLLECTION_NAME
+log_collection_name = LOG_COLLECTION_NAME
+
+# opens DB-Connection
+client = MongoClient(MONGO_URI)
+db = client[MONGO_DATABASE]
 
 
 class utils(object):
 
     # db
 
-    def db_connect(self):
-        client = MongoClient(MONGO_URI)
-        db = client[MONGO_DATABASE]
-        return db
-
-    def is_url_in_db(url, db):
-        url_db = db[collection_name].find_one({"short_url": url}, {"short_url": 1})
+    def is_url_in_db(url):
+        url_db = db[article_collection_name].find_one({"short_url": url}, {"short_url": 1})
         return url_db is not None
+
+    def log_event(self, news_site, url, property_name, level):
+        log_item = LogItem()
+        log_item['news_site'] = news_site
+        log_item['log_time'] = datetime.now()
+        log_item['url'] = url
+        log_item['property'] = property_name
+        log_item['level'] = level
+        db[log_collection_name].insert(dict(log_item))
+
 
     # url handling
 
     def add_host_to_url(self, url, root):
-        if url and str(url)[0] == '/':
+        if url is not None and len(url) > 0 and str(url)[0] == '/':
             return root + url  # for relative paths it is necessary to add scheme and host
         return url
 
     def add_host_to_url_list(self, url_list, root):
         complete_urls = []
-        if(url_list):
+        if url_list is not None and len(url_list) > 0:
             for url in url_list:
                 complete_urls.append(self.add_host_to_url(url, root))
         return complete_urls
 
     def get_short_url(url, root, regex):
-        if url:
+        if url is not None:
             regex = re.search(regex, url)
-            if regex:
+            if regex is not None:
                 return root + '/' + regex.group()
         return url
 
@@ -47,13 +60,13 @@ class utils(object):
 
     def not_none_string(s):
         result = ""
-        if s != None:
+        if s is not None:
             result = s
         return result
 
     def not_none_list(l):
         result = []
-        if l != None:
+        if l is not None:
             result = l
         return result
 
@@ -62,7 +75,7 @@ class utils(object):
     # limit spider
 
     def limit_crawl(list,number):
-        if list and number > 0 and number < len(list):
+        if list is not None and number > 0 and number < len(list):
                 return list[:number]
         else:
             return list
@@ -74,7 +87,7 @@ class utils(object):
     # - avoiding None-objects
 
     # get simple string of item property
-    def get_item_string(self, response, property_name, url, sel, expr_list):
+    def get_item_string(self, response, property_name, url, sel, expr_list, news_site):
         for expr in expr_list:
             if sel=="css":
                 property = response.css(expr).get()
@@ -82,13 +95,14 @@ class utils(object):
                 property = response.xpath(expr).get()
             else:
                 property = ""
-            if property and property.strip():
+            if property is not None and len(property.strip()) > 0:
                 return property.strip()
+        self.log_event(news_site, url, property_name, 'warning')
         logging.warning("Cannot parse %s: %s", property_name, url)
         return ""
 
     # get list of item property
-    def get_item_list(self, response, property_name, url, sel, expr_list):
+    def get_item_list(self, response, property_name, url, sel, expr_list, news_site):
         for expr in expr_list:
             if sel=="css":
                 property = response.css(expr).extract()
@@ -96,13 +110,14 @@ class utils(object):
                 property = response.xpath(expr).extract()
             else:
                 property = []
-            if property:
+            if property is not None:
                 return list(set(property))
+        self.log_event(news_site, url, property_name, 'warning')
         logging.warning("Cannot parse %s: %s", property_name, url)
         return []
 
     # get list of item property by splitting string
-    def get_item_list_from_str(self, response, property_name, url, sel, expr_list, split_str):
+    def get_item_list_from_str(self, response, property_name, url, sel, expr_list, split_str, news_site):
         for expr in expr_list:
             if sel=="css":
                 property = response.css(expr).get()
@@ -110,7 +125,8 @@ class utils(object):
                 property = response.xpath(expr).get()
             else:
                 property = ""
-            if property:
+            if property is not None:
                 return property.split(split_str)
+        self.log_event(news_site, url, property_name, 'warning')
         logging.warning("Cannot parse %s: %s", property_name, url)
         return []
