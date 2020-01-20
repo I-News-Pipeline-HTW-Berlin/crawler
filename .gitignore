@@ -55,6 +55,8 @@ coverage.xml
 .ropeproject
 
 mongo_elastic/connector_security.py
+mongo_elastic/connector_sec_inews.py
+
 
 # Django stuff:
 *.log

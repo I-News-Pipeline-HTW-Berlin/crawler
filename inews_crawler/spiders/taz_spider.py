@@ -90,12 +90,21 @@ class TazSpider(scrapy.Spider):
                 try:
                     return datetime.strptime(time_str,'%Y-%m-%dT%H:%M:%S%z')  # "2019-11-14T10:50:00+01:00"
                 except:
+                    utils.log_event(utils_obj, self.name, short_url, 'not parsed', 'extra_warning')
                     return None
 
             published_time_string = response.xpath('//meta[@property="article:published_time"]/@content').get()
             modified_time_string = response.xpath('//meta[@property="article:modified_time"]/@content').get()
-            pub_time = parse_pub_time(published_time_string)
-            mod_time = parse_pub_time(modified_time_string)
+            if published_time_string is None:
+                utils.log_event(utils_obj, self.name, short_url, 'published_time_string', 'extra_warning')
+                pub_time = None
+            else:
+                pub_time = parse_pub_time(published_time_string)
+            if modified_time_string is None:
+                utils.log_event(utils_obj, self.name, short_url, 'modified_time_string', 'extra_warning')
+                mod_time = None
+            else:
+                mod_time = parse_pub_time(modified_time_string)
             if pub_time is not None:
                 return pub_time
             elif mod_time is not None:
