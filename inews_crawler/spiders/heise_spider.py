@@ -135,9 +135,13 @@ class HeiseSpider(scrapy.Spider):
                 try:
                     return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S%z')  # "2020-01-03T07:13:00+01:00"
                 except:
-                    utils.log_event(utils_obj, self.name, short_url, 'published_time', 'warning')
-                    logging.warning("Cannot parse published time: %s", short_url)
-                    return None
+                    time_str = time_str[:-6]
+                    try:
+                        return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S')  # "2019-11-14T10:50:00"
+                    except:
+                        utils.log_event(utils_obj, self.name, short_url, 'published_time', 'warning')
+                        logging.warning("Cannot parse published time: %s", short_url)
+                        return None
 
 
         # don't save paywalled articles (not necessary because paywalled articles are filtered in parse_category)
