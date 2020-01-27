@@ -129,19 +129,22 @@ class HeiseSpider(scrapy.Spider):
 
         def get_pub_time():
             time_str = response.xpath('//time/@datetime').get()
-            try:
-                return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S')  # "2020-01-03T07:13:00"
-            except:
+            if time_str is None:
+                return None
+            else:
                 try:
-                    return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S%z')  # "2020-01-03T07:13:00+01:00"
+                    return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S')  # "2020-01-03T07:13:00"
                 except:
-                    time_str = time_str[:-6]
                     try:
-                        return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S')  # "2019-11-14T10:50:00"
+                        return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S%z')  # "2020-01-03T07:13:00+01:00"
                     except:
-                        utils.log_event(utils_obj, self.name, short_url, 'published_time', 'warning')
-                        logging.warning("Cannot parse published time: %s", short_url)
-                        return None
+                        time_str = time_str[:-6]
+                        try:
+                            return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S')  # "2019-11-14T10:50:00"
+                        except:
+                            utils.log_event(utils_obj, self.name, short_url, 'published_time', 'warning')
+                            logging.warning("Cannot parse published time: %s", short_url)
+                            return None
 
 
         # don't save paywalled articles (not necessary because paywalled articles are filtered in parse_category)
