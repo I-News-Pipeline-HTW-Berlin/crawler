@@ -20,6 +20,7 @@ limit_pages = 1                 # additional category pages of 50 articles each.
 
 class SueddeutscheSpider(scrapy.Spider):
     name = "sueddeutsche"
+    name_short = "sz"
     start_urls = [root]
 
 
@@ -63,12 +64,12 @@ class SueddeutscheSpider(scrapy.Spider):
         for i in range(len(links)):
             short_url = utils.get_short_url(links[i],root, short_url_regex)
             if short_url and not utils.is_url_in_db(short_url):           # db-query
-                description = utils.get_item_string(utils_obj, articles[i], 'description', department_url, 'css', [".sz-teaser__summary::text"], self.name)
+                description = utils.get_item_string(utils_obj, articles[i], 'description', department_url, 'css', [".sz-teaser__summary::text"], self.name_short)
                 yield scrapy.Request(links[i]+full_article_addition, callback=self.parse_article,
                                      cb_kwargs=dict(description=description, long_url=links[i], short_url=short_url,
                                                     dep=department))
             else:
-                utils.log_event(utils_obj, self.name, short_url, 'exists', 'info')
+                utils.log_event(utils_obj, self.name_short, short_url, 'exists', 'info')
                 logging.info("%s already in db", short_url)
 
         offSet = 0
@@ -94,7 +95,7 @@ class SueddeutscheSpider(scrapy.Spider):
             else:
                 intro = response.css(".sz-article-intro__abstract-text::text").get()
             if not intro:
-                utils.log_event(utils_obj, self.name, short_url, 'intro', 'warning')
+                utils.log_event(utils_obj, self.name_short, short_url, 'intro', 'warning')
                 logging.warning("Cannot parse intro: %s", short_url)
                 intro = ""
             return intro
@@ -117,7 +118,7 @@ class SueddeutscheSpider(scrapy.Spider):
                     article_text += paragraph + "\n\n"
             text = article_text.strip()
             if not text:
-                utils.log_event(utils_obj, self.name, short_url, 'text', 'warning')
+                utils.log_event(utils_obj, self.name_short, short_url, 'text', 'warning')
                 logging.warning("Cannot parse article text: %s", short_url)
             return text
 
@@ -126,7 +127,7 @@ class SueddeutscheSpider(scrapy.Spider):
             try:
                 return datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')  # "2019-11-21 21:53:09"
             except:
-                utils.log_event(utils_obj, self.name, short_url, 'published_time', 'warning')
+                utils.log_event(utils_obj, self.name_short, short_url, 'published_time', 'warning')
                 logging.warning("Cannot parse published time: %s", short_url)
                 return None
 
@@ -143,24 +144,24 @@ class SueddeutscheSpider(scrapy.Spider):
 
             item['news_site'] = "sz"
             item['title'] = utils.get_item_string(utils_obj, response, 'title', short_url, 'xpath',
-                                                  ['//meta[@property="og:title"]/@content'], self.name)
+                                                  ['//meta[@property="og:title"]/@content'], self.name_short)
             item['authors'] = utils.get_item_list(utils_obj, response, 'authors', short_url, 'xpath',
-                                                    ['//meta[@name="author"]/@content'], self.name)
+                                                    ['//meta[@name="author"]/@content'], self.name_short)
 
             item['description'] = description
             item['intro'] = get_intro()
             item['text'] = get_article_text()
 
             keywords = utils.get_item_list_from_str(utils_obj, response, 'keywords', short_url, 'xpath',
-                                                            ['//meta[@name="keywords"]/@content'],',', self.name)
+                                                            ['//meta[@name="keywords"]/@content'],',', self.name_short)
             item['keywords'] = list(set(keywords) - {"Süddeutsche Zeitung"})
 
             item['published_time'] = get_pub_time()
             item['image_links'] = utils.get_item_list(utils_obj, response, 'image_links', short_url, 'xpath',
-                                                               ['//meta[@property="og:image"]/@content'], self.name)
+                                                               ['//meta[@property="og:image"]/@content'], self.name_short)
 
             links =  utils.get_item_list(utils_obj, response, 'links', short_url, 'xpath',
-                                         ['//div[@class="sz-article__body sz-article-body"]/p/a/@href'], self.name)
+                                         ['//div[@class="sz-article__body sz-article-body"]/p/a/@href'], self.name_short)
             item['links'] = utils.add_host_to_url_list(utils_obj, links, root)
 
             # don't save article without title or text
@@ -168,7 +169,7 @@ class SueddeutscheSpider(scrapy.Spider):
                     yield item
             else:
                 logging.info("Cannot parse article: %s", short_url)
-                utils.log_event(utils_obj, self.name, short_url, 'missingImportantProperty', 'info')
+                utils.log_event(utils_obj, self.name_short, short_url, 'missingImportantProperty', 'info')
         else:
-            utils.log_event(utils_obj, self.name, short_url, 'paywall', 'info')
+            utils.log_event(utils_obj, self.name_short, short_url, 'paywall', 'info')
             logging.info("Paywalled: %s", short_url)
