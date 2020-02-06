@@ -58,7 +58,9 @@ class HeiseSpider(scrapy.Spider):
 
         department_name = utils.get_item_string(utils_obj, response, 'department', department_url, 'xpath',
                                                 ['//meta[@name="title"]/@content'], self.name)
-        articles = response.xpath('//section[@class="article-teaser__list"]/article').extract()
+        articles = response.css(".stage--top article").extract() \
+                   + response.xpath('//section[@class="article-index"]/article').extract()
+
         limited_articles = utils.limit_crawl(articles,testrun_arts)
 
         for article in limited_articles:
