@@ -12,7 +12,7 @@ every spider:
 - crawls article links for article and meta data (as defined in `items.py`)
 - saves data in database in collection `scraped_articles` (via `pipelines.py`) 
 
-using common functions in `utils.py`.
+using common methods in `utils.py`.
 
 ### Output in MongoDB
 
@@ -228,7 +228,7 @@ Jeder Spider:
 - crawlt die Artikellinks und extrahiert den Artikel und Metadaten (wie in `items.py` definiert)
 - speichert die Daten in der Datenbank-Collection `scraped_articles` (via `pipelines.py`). 
 
-und nutzt dabei jeweils gemeinsame Funktionen in `utils.py`.
+und nutzt dabei jeweils gemeinsame Methoden in `utils.py`.
 
 
 ### Output in MongoDB
