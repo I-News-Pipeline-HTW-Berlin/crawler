@@ -219,7 +219,7 @@ Happy crawling!
 
 zum Crawlen von Newsseiten, nutzt das Framework [scrapy](https://scrapy.org/).
 
-Der Crawler basiert auf 'Spiders', die eine spezifische Newsseite crawlen und Informationen extrahieren.
+Der Crawler basiert auf 'Spider', die eine spezifische Newsseite crawlen und Informationen extrahieren.
 
 Jeder Spider:
 - crawlt die Hauptseite nach Kategorienseiten
