@@ -7,7 +7,6 @@ import re
 from .items import LogItem
 
 
-
 article_collection_name = ARTICLE_COLLECTION_NAME
 log_collection_name = LOG_COLLECTION_NAME
 
@@ -24,13 +23,14 @@ class utils(object):
         url_db = db[article_collection_name].find_one({"short_url": url}, {"short_url": 1})
         return url_db is not None
 
+    # saving log item to log_collection in database
     def log_event(self, news_site, url, property_name, level):
         log_item = LogItem()
-        log_item['news_site'] = news_site
-        log_item['log_time'] = datetime.now()
-        log_item['url'] = url
-        log_item['property'] = property_name
-        log_item['level'] = level
+        log_item['news_site'] = news_site           # String: taz, sz, heise
+        log_item['log_time'] = datetime.now()       # datetime
+        log_item['url'] = url                       # String 'https://taz.de/!5642421/'
+        log_item['property'] = property_name        # String: text, title, keywords, ...
+        log_item['level'] = level                   # String: warning, info
         db[log_collection_name].insert(dict(log_item))
 
 

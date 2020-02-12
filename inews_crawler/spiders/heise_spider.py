@@ -6,7 +6,7 @@ from ..items import ArticleItem
 from ..utils import utils
 
 root = 'https://www.heise.de'
-short_url_regex="\-[0-9]\d{6,}"
+short_url_regex="\-[0-9]\d{6,}"       # helps converting long to short url: https://www.heise.de/-4642199
 full_article_addition = '?seite=all'  # if article extends over multiple pages this url addition will get the full article
 
 testrun_cats = 0    # limits the categories to crawl to this number. if zero, no limit.
@@ -25,8 +25,9 @@ class HeiseSpider(scrapy.Spider):
     def start_requests(self):
         yield scrapy.Request(self.start_url, callback=self.parse)
 
+    # scrape main page for categories
     def parse(self, response):
-        departments =response.css(".nav-category__list .nav-category__item a").xpath("@href").extract()
+        departments = response.css(".nav-category__list .nav-category__item a").xpath("@href").extract()
         departments = utils.limit_crawl(departments, testrun_cats)
         for department_url in departments:
             department_url = root + department_url
@@ -34,9 +35,10 @@ class HeiseSpider(scrapy.Spider):
                                  callback=self.parse_category,
                                  cb_kwargs=dict(department_url=department_url, page=1, limit_pages=limit_pages))
 
-
+    # scrape category pages for articles
     def parse_category(self, response, department_url, page, limit_pages):
         utils_obj = utils()
+
         def find_last_page():
             links = response.xpath('//li/a/@href').extract()
             pagination = []
@@ -68,9 +70,9 @@ class HeiseSpider(scrapy.Spider):
             long_url = article_html.xpath('//a/@href').get()
             long_url = utils.add_host_to_url(utils_obj, long_url, root)
             short_url = utils.not_none_string(utils.get_short_url(long_url, root, short_url_regex))
-            # Filter techstage articles
+            # no techstage articles
             if not "techstage.de" in long_url:
-                # Filter paywalled articles
+                # no paywalled articles
                 if not "heiseplus" in article:
                     if short_url and not utils.is_url_in_db(short_url):  # db-query
                         description = utils.get_item_string(utils_obj, article_html, 'description', department_url, 'xpath',
@@ -129,6 +131,7 @@ class HeiseSpider(scrapy.Spider):
             else:
                 return []
 
+        # try different formats
         def get_pub_time():
             time_str = response.xpath('//time/@datetime').get()
             if time_str is None:
@@ -151,8 +154,6 @@ class HeiseSpider(scrapy.Spider):
 
         # don't save paywalled articles (not necessary because paywalled articles are filtered in parse_category)
         def is_paywalled():
-            print(response.xpath('//a-paid-content-teaser/@class').get())
-            print(response.xpath('//div/@id').extract())
             paywall_heise = response.xpath('//a-paid-content-teaser/@class').get() != None
             paywall_ct = "purchase" in response.xpath('//div/@id').extract()
             return paywall_heise & paywall_ct

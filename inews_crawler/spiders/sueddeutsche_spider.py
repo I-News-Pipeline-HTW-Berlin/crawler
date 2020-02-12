@@ -6,7 +6,7 @@ from ..items import ArticleItem
 from ..utils import utils
 
 root = 'https://sueddeutsche.de'
-short_url_regex = "\d(\.|\d)+$" # https://sueddeutsche.de/1.3456789
+short_url_regex = "\d(\.|\d)+$" # helps converting long to short url: https://sueddeutsche.de/1.3456789
 full_article_addition = '-0'    # if article extends over multiple pages this url addition will get the full article
 
 testrun_cats = 0                # limits the categories to crawl to this number. if zero, no limit.
@@ -23,7 +23,7 @@ class SueddeutscheSpider(scrapy.Spider):
     name_short = "sz"
     start_urls = [root]
 
-
+    # scrape main page for categories
     def parse(self, response):
         departments = response.css("#header-departments .nav-item-link").xpath("@href").extract()
         departments = utils.limit_crawl(departments,testrun_cats)
@@ -34,7 +34,7 @@ class SueddeutscheSpider(scrapy.Spider):
                                  callback=self.parse_category,
                                  cb_kwargs=dict(department=dep, department_url=department_url))
 
-
+    # scrape category pages for articles
     def parse_category(self, response, department, department_url):
 
         departmentIds = {
@@ -64,7 +64,8 @@ class SueddeutscheSpider(scrapy.Spider):
         for i in range(len(links)):
             short_url = utils.get_short_url(links[i],root, short_url_regex)
             if short_url and not utils.is_url_in_db(short_url):           # db-query
-                description = utils.get_item_string(utils_obj, articles[i], 'description', department_url, 'css', [".sz-teaser__summary::text"], self.name_short)
+                description = utils.get_item_string(utils_obj, articles[i], 'description', department_url, 'css',
+                                                    [".sz-teaser__summary::text"], self.name_short)
                 yield scrapy.Request(links[i]+full_article_addition, callback=self.parse_article,
                                      cb_kwargs=dict(description=description, long_url=links[i], short_url=short_url,
                                                     dep=department))
@@ -72,6 +73,7 @@ class SueddeutscheSpider(scrapy.Spider):
                 utils.log_event(utils_obj, self.name_short, short_url, 'exists', 'info')
                 logging.info("%s already in db", short_url)
 
+        # request additional category pages
         offSet = 0
         more = "https://www.sueddeutsche.de/overviewpage/additionalDepartmentTeasers?departmentId={}&offset={}&size=50&isMobile=false".format(
             departmentIds[department], offSet)
@@ -132,7 +134,7 @@ class SueddeutscheSpider(scrapy.Spider):
                 return None
 
 
-        # don't save paywalled article-parts
+        # don't save paywalled article parts
         paywall = response.xpath('//offer-page').get()
         if not paywall:
 

@@ -6,7 +6,7 @@ from ..items import ArticleItem
 from ..utils import utils
 
 root = 'https://taz.de'
-short_url_regex = "!\d{5,}"         # https://taz.de/!2345678/
+short_url_regex = "!\d{5,}"         # helps converting long to short url: https://taz.de/!2345678/
 
 testrun_cats = 0                    # limits the categories to crawl to this number. if zero, no limit.
 testrun_arts = 0                    # limits the article links to crawl to this number. if zero, no limit.
@@ -19,6 +19,7 @@ class TazSpider(scrapy.Spider):
     def start_requests(self):
         yield scrapy.Request(self.start_url, callback=self.parse)
 
+    # scrape main page for categories
     def parse(self, response):
         categories = response.xpath('//ul[@class="news navbar newsnavigation"]/li/a/@href').extract()
         categories = utils.limit_crawl(categories,testrun_cats)
@@ -26,9 +27,11 @@ class TazSpider(scrapy.Spider):
             cat = utils.add_host_to_url(self, cat, root)
             yield scrapy.Request(url=cat, callback=self.parse_category)
 
+    # scrape category pages for articles
     def parse_category(self, response):
+
+        # taz.de has different classes of links which direct to an article
         def getLinkselector():
-            # taz.de has different classes of links which direct to an article
             linkclasses = [
                 "objlink report article",
                 "objlink report article leaded pictured",
@@ -66,7 +69,8 @@ class TazSpider(scrapy.Spider):
             html_article = response.xpath('//article/*').extract()      # every tag in <article>
             for tag in html_article:
                 line = ""
-                # only p tags with 'xmlns="" and class beginning with "article..." (paragraphs) or h6-tags (subheadings)
+                # only p tags with 'xmlns="" and class beginning with "article..." (=paragraphs)
+                # or h6-tags (=subheadings)
                 if "p xmlns=\"\" class=\"article" in tag or tag[2]=="6":
                     tag_selector = Selector(text=tag)
                     html_line = tag_selector.xpath('//*/text()').extract()
